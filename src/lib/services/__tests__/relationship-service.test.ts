@@ -9,12 +9,11 @@ import {
 import { createEndorsement } from "@/lib/services/endorsement-service";
 
 /**
- * Covers the plan's non-negotiable V1 invariants (section 2 / 7): a self-declared
+ * Covers the non-negotiable V1 invariants (see docs/data-model.md): a self-declared
  * relationship can't be confirmed by its own declarer, visibility is strictly
  * per-participant, and endorsement verification status is recomputed server-side from
  * the relationship's actual confirmation state. Runs against a real local Postgres
- * (matching IMPLEMENTATION_PLAN.md's testing approach) using throwaway users this file
- * creates and tears down itself.
+ * (see docs/testing.md) using throwaway users this file creates and tears down itself.
  */
 
 const RUN_ID = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

@@ -106,7 +106,10 @@ Set regional/category fairness checks. Never use sheer connections, endorsements
 **Before each 10x scale investment:** show retention, liquidity, unit economics, safety operations and technical need; do not scale merely to hit a signup headline.
 
 ## 11. Agent handoff: how to use this vision
-1. Implement `01_V1_BUILD_PLAN.md` first. This vision is **not** authorization to ship all five years of features now.
+1. V1 is already built — see `docs/` (start at `docs/product-overview.md`) for what
+   shipped and `docs/decisions.md` for open questions. This vision is **not**
+   authorization to ship all five years of features now; treat it as direction for
+   what V1's architecture should stay extensible toward, not a backlog to start on.
 2. Keep domain models extensible (skill taxonomy, evidence provenance, relationship types, visibility, localized labels), but build only needed V1 functionality.
 3. Keep business logic behind typed service interfaces so native apps, integrations and future search engines can reuse it.
 4. Write Architecture Decision Records for major technology choices and migration triggers.

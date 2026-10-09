@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --color-paper: #faf7f1;
+  --color-surface: #ffffff;
+  --color-ink: #231f1c;
+  --color-ink-muted: #6b6258;
+  --color-border: #e6ddcf;
+  --color-border-strong: #d2c5b2;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent: #bf5425;
+  --color-accent-hover: #a8451c;
+  --color-accent-soft: #f4ddc9;
+  --color-accent-foreground: #fff8f2;
+
+  --color-success: #3f7d4a;
+  --color-success-soft: #e1efe1;
+  --color-warning: #a8701f;
+  --color-warning-soft: #f6e9d2;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fae1df;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-paper: #1b1815;
+    --color-surface: #242019;
+    --color-ink: #f1ebe2;
+    --color-ink-muted: #b6ab9c;
+    --color-border: #3a332b;
+    --color-border-strong: #4c4336;
+
+    --color-accent: #e07a3f;
+    --color-accent-hover: #ed8c53;
+    --color-accent-soft: #4a3222;
+    --color-accent-foreground: #231508;
+
+    --color-success: #6fb47a;
+    --color-success-soft: #203425;
+    --color-warning: #d6a44f;
+    --color-warning-soft: #3a2e15;
+    --color-danger: #e2766f;
+    --color-danger-soft: #3a211f;
   }
 }
 
+@theme inline {
+  --color-paper: var(--color-paper);
+  --color-surface: var(--color-surface);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-foreground: var(--color-accent-foreground);
+
+  --color-success: var(--color-success);
+  --color-success-soft: var(--color-success-soft);
+  --color-warning: var(--color-warning);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-danger: var(--color-danger);
+  --color-danger-soft: var(--color-danger-soft);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

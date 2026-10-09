@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/toaster";
+import { DraftSuggestionPanel, type AiDraft } from "@/components/ai/draft-suggestion-panel";
 
 interface PersonSkill {
   id: string;
@@ -38,6 +39,35 @@ interface Profile {
 export default function SettingsProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
+  const [drafting, setDrafting] = useState(false);
+
+  async function handleDraftBioWithAi() {
+    if (!profile) return;
+    setDrafting(true);
+    try {
+      const primary = profile.personSkills.find((ps) => ps.isPrimary)?.skill.name ?? null;
+      const secondary = profile.personSkills.filter((ps) => !ps.isPrimary).map((ps) => ps.skill.name);
+      const res = await fetch("/api/ai/bio-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: profile.displayName,
+          primarySkillName: primary,
+          secondarySkillNames: secondary,
+          existingBio: profile.bio,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Couldn't generate a draft right now.");
+        return;
+      }
+      const data = await res.json();
+      setAiDraft(data.draft);
+    } finally {
+      setDrafting(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/profiles/me")
@@ -90,12 +120,27 @@ export default function SettingsProfilePage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="bio">Bio</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="bio">Bio</Label>
+              <Button type="button" size="sm" variant="secondary" disabled={drafting} onClick={handleDraftBioWithAi}>
+                {drafting ? "Drafting…" : "Draft with AI"}
+              </Button>
+            </div>
             <Textarea
               id="bio"
               value={profile.bio ?? ""}
               onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
             />
+            {aiDraft ? (
+              <DraftSuggestionPanel
+                draft={aiDraft}
+                onUse={(text) => {
+                  setProfile({ ...profile, bio: text });
+                  setAiDraft(null);
+                }}
+                onDiscard={() => setAiDraft(null)}
+              />
+            ) : null}
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">

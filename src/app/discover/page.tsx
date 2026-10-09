@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { SkillPicker } from "@/components/discover/skill-picker";
 
 interface SearchResult {
@@ -39,6 +40,23 @@ const GEO_SCOPES = [
 
 const PAGE_SIZE = 20;
 
+interface MatchExplanation {
+  profileId: string;
+  summary: string;
+  reasons: string[];
+  source: "LOCAL_TEMPLATE";
+}
+
+interface ParsedQuery {
+  query: string;
+  skillId?: string;
+  matchedSkillName?: string;
+  geoScope?: string;
+  availability?: string;
+  source: "LOCAL_HEURISTIC" | "EXTERNAL_LLM";
+  parseNotes: string[];
+}
+
 export default function DiscoverPage() {
   const [query, setQuery] = useState("");
   const [skillId, setSkillId] = useState<string | null>(null);
@@ -48,6 +66,31 @@ export default function DiscoverPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
+
+  const [nlText, setNlText] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [nlParsed, setNlParsed] = useState<ParsedQuery | null>(null);
+  const [nlResults, setNlResults] = useState<SearchResult[]>([]);
+  const [nlExplanations, setNlExplanations] = useState<MatchExplanation[]>([]);
+
+  async function runNlSearch() {
+    if (!nlText.trim()) return;
+    setNlLoading(true);
+    try {
+      const res = await fetch("/api/ai/nl-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: nlText }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNlParsed(data.parsedQuery ?? null);
+      setNlResults(data.results ?? []);
+      setNlExplanations(data.explanations ?? []);
+    } finally {
+      setNlLoading(false);
+    }
+  }
 
   function buildParams(offset: number) {
     const params = new URLSearchParams();
@@ -96,6 +139,61 @@ export default function DiscoverPage() {
         Every result shows exactly why it matched — skill relevance, geography, and
         portfolio evidence — not a single hidden trust score.
       </p>
+
+      <div className="mt-6 rounded-md border border-dashed border-accent bg-accent-soft p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <Badge variant="outline">AI-assisted</Badge>
+          <p className="text-sm font-medium text-ink">Or describe what you need in plain English</p>
+        </div>
+        <Textarea
+          placeholder='e.g. "need someone to fix a cabinet locally this week"'
+          value={nlText}
+          onChange={(e) => setNlText(e.target.value)}
+          className="bg-paper"
+        />
+        <Button className="mt-2" size="sm" onClick={runNlSearch} disabled={nlLoading}>
+          {nlLoading ? "Parsing…" : "Find matches"}
+        </Button>
+
+        {nlParsed ? (
+          <div className="mt-3 text-xs text-ink-muted">
+            <p className="font-medium text-ink">How this was interpreted:</p>
+            {nlParsed.parseNotes.length > 0 ? (
+              <ul className="list-inside list-disc">
+                {nlParsed.parseNotes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No specific skill, location, or urgency phrases detected — treated as a plain keyword search.</p>
+            )}
+          </div>
+        ) : null}
+
+        {nlResults.length > 0 ? (
+          <div className="mt-4 flex flex-col gap-3">
+            {nlResults.map((r) => {
+              const explanation = nlExplanations.find((e) => e.profileId === r.profileId);
+              return (
+                <Link key={r.profileId} href={`/p/${r.slug}`}>
+                  <Card className="bg-paper transition-shadow hover:shadow-md">
+                    <CardContent className="flex flex-col gap-1 p-4">
+                      <h4 className="font-display text-base text-ink">{r.displayName}</h4>
+                      {explanation ? (
+                        <ul className="list-inside list-disc text-xs text-ink-muted">
+                          {explanation.reasons.map((reason, i) => (
+                            <li key={i}>{reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Input

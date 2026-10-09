@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/flags", label: "Abuse flags" },
   { href: "/admin/review-cases", label: "Review queues" },
+  { href: "/admin/ai-flags", label: "AI-flagged patterns" },
   { href: "/admin/badges", label: "Badges" },
   { href: "/admin/stage-rules", label: "Stage rules" },
 ];

@@ -108,17 +108,41 @@ users — those models' `relationship`/`claim` FK cascades, but their
 `raisedBy`/`addedBy`/`reviewer` FKs to `User` do not (pre-existing gap, not
 introduced by this track; see `docs/decisions.md`).
 
+`src/lib/services/__tests__/ai-assistance.test.ts` covers Track 8 (AI assistance, see
+[roadmap/08-ai-assistance.md](./roadmap/08-ai-assistance.md)) with
+`AI_EXTERNAL_PROVIDER_ENABLED` unset, i.e. the default/off posture:
+
+1. NL query parsing maps urgency/locality phrases and a real skill name to structured
+   search params via the local heuristic, and never fabricates a skill match for text
+   that names no real skill.
+2. Match explanations only ever cite fields actually present on the search result
+   (skill/geo match, portfolio count, availability) — nothing invented.
+3. Portfolio/bio drafting returns the local-template fallback built only from the
+   given title/tags/notes/skills.
+4. Translation honestly reports "unavailable" and preserves the original text rather
+   than fabricating a translation.
+5. Fraud-signal scanning (rapid claim bursts, endorsement rings, repeated disputed
+   self-declarations) creates `PENDING` `AiModerationFlag` rows traceable to the real
+   claim/endorsement/relationship ids, never mutates the scanned records, and never
+   double-flags the same target+reason on a repeat scan.
+6. Admin resolution of a flag (`resolveAiFlag`) is a distinct, audited action — a flag
+   stays `PENDING` until an admin acts on it.
+
+These don't exercise the external-LLM-enabled code path (that would need a live
+`ANTHROPIC_API_KEY` and defeats the point of a repeatable test suite) — only the local
+fallback every feature has regardless of the flag.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Ten test files exist (the original V1 relationships suite, Track 2's reference and
+- Eleven test files exist (the original V1 relationships suite, Track 2's reference and
   claim-appeal suites, the four Track 3 suites, Track 6's business-service suite,
-  Track 1's search-service suite, and Track 9's trust-safety suite). The plan called
-  for "at minimum, one test per feature area" — Social still doesn't have its own
-  general test suite (Identity has partial coverage via Track 6's business-tooling
-  tests; Discovery via Track 1's search-service tests; Admin via Track 9's
-  trust-safety tests).
+  Track 1's search-service suite, Track 9's trust-safety suite, and Track 8's
+  ai-assistance suite). The plan called for "at minimum, one test per feature area" —
+  Social still doesn't have its own general test suite (Identity has partial coverage
+  via Track 6's business-tooling tests; Discovery via Track 1's search-service and
+  Track 8's ai-assistance tests; Admin via Track 9's trust-safety tests).
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

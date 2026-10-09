@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
 import { issueEmailVerificationToken } from "@/lib/auth-tokens";
 import { uniqueSlug } from "@/lib/slug";
+import { rateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -12,6 +13,11 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (!rateLimit(`register:${ip}`, 5, 60 * 60 * 1000).ok) {
+    return NextResponse.json({ error: "Too many attempts, try again later" }, { status: 429 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

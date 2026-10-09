@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude code worktrees / local agent metadata
+/.claude/
+
+# local filesystem media storage (STORAGE_DRIVER=local)
+/.data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

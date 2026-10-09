@@ -10,6 +10,8 @@ const navLinks = [
   { href: "/relationships", label: "Relationships" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/help-requests", label: "Help requests" },
+  { href: "/mentoring", label: "Mentoring" },
+  { href: "/learning-circles", label: "Learning circles" },
 ];
 
 export async function SiteHeader() {

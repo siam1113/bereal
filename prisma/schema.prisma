@@ -93,6 +93,13 @@ model User {
   serviceOfferings    ServiceOffering[]
   inquiriesSent       Inquiry[]         @relation("InquiryFrom")
 
+  mentoringOffers           MentoringOffer[]
+  mentoringRequestsSent     MentoringRequest[]
+  expertSessionsHosted      ExpertSession[]
+  expertSessionBookings     ExpertSessionBooking[]
+  learningCirclesCreated    LearningCircle[]
+  learningCircleMemberships LearningCircleMembership[]
+
   conversationParticipants ConversationParticipant[]
   messagesSent             Message[]
 
@@ -281,6 +288,9 @@ model Skill {
   opportunities    Opportunity[]
   serviceOfferings ServiceOffering[]
   endorsements     Endorsement[]
+  mentoringOffers  MentoringOffer[]
+  expertSessions   ExpertSession[]
+  learningCircles  LearningCircle[]
 
   @@index([categoryGroup])
 }
@@ -968,6 +978,12 @@ enum NotificationType {
   INQUIRY_RECEIVED
   NEW_MESSAGE
   MODERATION_UPDATE
+  MENTORING_REQUEST_RECEIVED
+  MENTORING_REQUEST_DECISION
+  EXPERT_SESSION_BOOKED
+  EXPERT_SESSION_CANCELLED
+  LEARNING_CIRCLE_JOIN_REQUEST
+  LEARNING_CIRCLE_MEMBERSHIP_DECISION
 }
 
 model Notification {
@@ -1049,4 +1065,194 @@ model AuditEvent {
 
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// Learning & mentorship (Track 5)
+//
+// Three constructs, deliberately kept distinct per docs/roadmap/05-learning-and-mentorship.md:
+// - MentoringOffer/MentoringRequest: a *mutual* mentoring marketplace. This is NOT a
+//   replacement for the existing one-sided `LEARNING_FROM` relationship declaration,
+//   which stays exactly as-is (self-declared, author-hideable, never implying agreement).
+// - ExpertSession/ExpertSessionBooking: bookable, time-boxed sessions. No payment
+//   processing — booking is just a capacity-checked reservation.
+// - LearningCircle/LearningCircleMembership: a small-group construct, self-contained
+//   rather than reusing Track 3's (Relationships & collaboration graph) private-network
+//   scoping, which doesn't exist yet in this build — see docs/decisions.md.
+//
+// Accepting a MentoringRequest reuses the existing Relationship/RelationshipRequest
+// machinery (relationship-service.ts) to create an actual MENTOR_MENTEE relationship,
+// rather than inventing a parallel notion of "connected" — see mentoring-service.ts.
+// ============================================================================
+
+enum MentoringFormat {
+  ONE_ON_ONE
+  GROUP
+  EITHER
+}
+
+enum MentoringRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
+// A person's discoverable declaration that they're available to mentor on a given
+// skill — the mutual counterpart to the one-sided LEARNING_FROM relationship. Any
+// professional stage may post one; the UI must not frame higher stages as inherently
+// more worthy mentors (see docs/roadmap/05-learning-and-mentorship.md "invariants").
+model MentoringOffer {
+  id           String          @id @default(cuid())
+  mentorUserId String
+  skillId      String
+  title        String
+  description  String          @db.Text
+  format       MentoringFormat @default(ONE_ON_ONE)
+  // Max concurrent mentees this offer will take on (across ACCEPTED requests).
+  capacity     Int             @default(1)
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  mentor   User               @relation(fields: [mentorUserId], references: [id], onDelete: Cascade)
+  skill    Skill              @relation(fields: [skillId], references: [id])
+  requests MentoringRequest[]
+  sessions ExpertSession[]
+
+  @@index([skillId, isActive])
+  @@index([mentorUserId])
+}
+
+// A mentee's request to engage with a specific MentoringOffer. PENDING -> ACCEPTED
+// creates a real Relationship (see mentoring-service.ts#acceptMentoringRequest);
+// `resultingRelationshipId` is a plain denormalized pointer (no FK), matching the same
+// pattern RelationshipRequest.resultingRelationshipId already uses.
+model MentoringRequest {
+  id                    String                  @id @default(cuid())
+  offerId               String
+  menteeUserId          String
+  message               String?                 @db.Text
+  status                MentoringRequestStatus  @default(PENDING)
+  resultingRelationshipId String?
+  createdAt             DateTime                @default(now())
+  respondedAt           DateTime?
+
+  offer  MentoringOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  mentee User           @relation(fields: [menteeUserId], references: [id], onDelete: Cascade)
+
+  @@index([offerId, status])
+  @@index([menteeUserId])
+}
+
+enum ExpertSessionStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum ExpertSessionBookingStatus {
+  BOOKED
+  CANCELLED
+  ATTENDED
+  NO_SHOW
+}
+
+// A bookable, time-boxed session hosted by a mentor/expert. Independent of
+// PersonProfile.availability (a coarse status flag, not a schedule) — see the
+// "policy question to flag" entry in docs/decisions.md.
+model ExpertSession {
+  id               String               @id @default(cuid())
+  hostUserId       String
+  mentoringOfferId String?
+  skillId          String?
+  title            String
+  description      String?              @db.Text
+  startsAt         DateTime
+  endsAt           DateTime
+  capacity         Int                  @default(1)
+  status           ExpertSessionStatus  @default(SCHEDULED)
+  locationType     LocationType         @default(REMOTE)
+  geoScope         GeoScope             @default(GLOBAL)
+  // Free-text note (e.g. "video link sent on booking") — never an exact address, same
+  // discipline as every other free-text field in the app; there is no structured
+  // precise-location field here to begin with.
+  locationNote     String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  host           User                   @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  mentoringOffer MentoringOffer?        @relation(fields: [mentoringOfferId], references: [id])
+  skill          Skill?                 @relation(fields: [skillId], references: [id])
+  bookings       ExpertSessionBooking[]
+
+  @@index([skillId, status, startsAt])
+  @@index([hostUserId])
+}
+
+model ExpertSessionBooking {
+  id             String                      @id @default(cuid())
+  sessionId      String
+  attendeeUserId String
+  status         ExpertSessionBookingStatus  @default(BOOKED)
+  createdAt      DateTime                    @default(now())
+  cancelledAt    DateTime?
+
+  session  ExpertSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attendee User          @relation(fields: [attendeeUserId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, attendeeUserId])
+  @@index([sessionId, status])
+  @@index([attendeeUserId])
+}
+
+enum LearningCircleMembershipRole {
+  ORGANIZER
+  MEMBER
+}
+
+enum LearningCircleMembershipStatus {
+  PENDING
+  ACTIVE
+  LEFT
+  REMOVED
+}
+
+// Small-group learning construct. Deliberately self-contained (its own membership
+// model) rather than reusing Track 3's private-network scoping — that track is being
+// built concurrently and doesn't exist in this codebase yet. Flagged for reconciliation
+// during integration; see docs/decisions.md.
+model LearningCircle {
+  id            String   @id @default(cuid())
+  creatorUserId String
+  title         String
+  description   String?  @db.Text
+  skillId       String?
+  capacity      Int      @default(8)
+  geoScope      GeoScope @default(LOCAL)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  creator     User                       @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+  skill       Skill?                     @relation(fields: [skillId], references: [id])
+  memberships LearningCircleMembership[]
+
+  @@index([skillId, geoScope, isActive])
+  @@index([creatorUserId])
+}
+
+model LearningCircleMembership {
+  id        String                          @id @default(cuid())
+  circleId  String
+  userId    String
+  role      LearningCircleMembershipRole    @default(MEMBER)
+  status    LearningCircleMembershipStatus  @default(PENDING)
+  joinedAt  DateTime                        @default(now())
+
+  circle LearningCircle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@index([circleId, status])
 }

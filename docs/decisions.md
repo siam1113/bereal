@@ -53,6 +53,45 @@ here so nobody "fixes" them without knowing why they're this way.
 - **The Docker deployment path is unverified.** Pattern-correct (standard Next.js
   standalone + Prisma setup) but no actual `docker build` was run against it — see
   [deployment.md](./deployment.md).
+- **Track 5 (Learning & mentorship): `ExpertSession` scheduling is fully decoupled from
+  `PersonProfile.availability`.** The track doc explicitly flagged "whether/how
+  expert-session availability interacts with the existing `availability` field... or
+  needs its own" as a policy question, not something to decide silently. The
+  conservative, reversible choice taken here: `ExpertSession` carries its own
+  `startsAt`/`endsAt` per session and never reads or writes `PersonProfile.availability`
+  (a coarse status enum — `OPEN_TO_WORK`/`OPEN_TO_COLLAB`/`LIMITED`/`NOT_AVAILABLE` — not
+  a calendar). This avoids overloading that field's existing meaning and keeps both
+  schemas free to diverge; revisit if product wants a host's availability status to
+  gate or auto-suggest session creation. Flagged for a human product decision, not
+  resolved here.
+- **Track 5: learning circles are a self-contained membership model, not a reuse of
+  Track 3's private-network scoping.** The track doc suggested learning circles "could
+  reuse Track 3's private-network scoping once that exists" — Track 3 (Relationships &
+  collaboration graph) was being built concurrently in a separate worktree and its
+  private-network tables don't exist in this codebase. `LearningCircle`/
+  `LearningCircleMembership` were built as their own small-group construct (organizer
+  role, capacity-gated join-approval flow) instead of guessing at Track 3's eventual
+  shape. Flagged for reconciliation during integration — once Track 3's private-network
+  model lands, someone should decide whether learning circles should be rebuilt on top
+  of it or stay their own thing.
+- **Track 5: accepting a `MentoringRequest` creates a real `MENTOR_MENTEE` `Relationship`
+  by routing through the existing `relationship-service.ts` request-accept flow**
+  (`respondToRelationshipRequest`), rather than inventing a parallel "connected" concept.
+  The mentee's request becomes the relationship's `declaredByUserId`; the mentor
+  accepting the request is explicitly not the same act as the mentor later calling
+  `confirmRelationship()` — same SELF_DECLARED-until-countersigned distinction every
+  other relationship in the app already has to respect.
+- **Track 5: `mentoring-service.ts`/`expert-session-service.ts`/
+  `learning-circle-service.ts` define their own `*AuthError` classes instead of
+  importing `ForbiddenError` from `src/lib/auth-helpers.ts`.** `auth-helpers.ts` imports
+  `src/lib/auth.ts`, which imports `next-auth`; that import chain doesn't resolve under
+  the plain-node Vitest environment this project's service-layer tests run in (same
+  reason `relationship-service.ts` already defines its own `RelationshipAuthError`/
+  `RelationshipStateError` rather than reusing `ForbiddenError`). Route handlers still
+  map these to 403s, so the HTTP contract is unchanged — this is purely about keeping the
+  service layer unit-testable without a running Next.js/Auth.js context. Worth fixing at
+  the `auth-helpers.ts` level eventually (e.g. splitting the error classes out of the
+  module that imports `next-auth`) so future services don't have to route around it.
 
 ## Open questions before a public launch
 

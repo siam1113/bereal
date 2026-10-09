@@ -13,6 +13,13 @@ the schema *can't* enforce by itself, which the service layer must.
 - **Relationship graph**: `Relationship`, `RelationshipRequest`,
   `RelationshipParticipantVisibility`, `RelationshipEvidence`, `RelationshipDispute`,
   `Endorsement`, `ProfessionalFeedback`.
+- **Relationship-graph extensions** (Track 3, see
+  [roadmap/03-relationships-and-collaboration.md](./roadmap/03-relationships-and-collaboration.md)):
+  `RelationshipProjectLink` (project/team-history anchoring), `BusinessRelationship` +
+  its `ParticipantVisibility`/`Evidence`/`Dispute` siblings (business-to-person and
+  business-to-business relationships), `MentoringProgram` (structured mentoring, see
+  below), `PrivateNetwork`/`PrivateNetworkMembership`/`RelationshipNetworkLink`
+  (optional private networks).
 - **Social**: `Post`, `Comment`, `Reaction`, `Follow`.
 - **Opportunity layer**: `HelpRequest`, `HelpResponse`, `Opportunity`, `Application`,
   `ServiceOffering`, `Inquiry`.
@@ -85,6 +92,54 @@ These are non-negotiable per the product spec, and are what
    `PersonProfile`/`Business` only have `city`/`region`/`country` strings plus
    deliberately coarse `approxLat`/`approxLng` floats — there is no exact-address field
    anywhere in the schema, so there's nothing to accidentally leak.
+
+## Relationship-graph extensions (Track 3)
+
+Four additions on top of the person-to-person relationship graph above — see
+[roadmap/03-relationships-and-collaboration.md](./roadmap/03-relationships-and-collaboration.md)
+for the originating scope and the policy questions flagged (not decided) during the
+build, also logged in [decisions.md](./decisions.md).
+
+- **Project/team-history anchoring** (`RelationshipProjectLink`, service:
+  `team-history-service.ts`). A join row tying an existing `Relationship` to a
+  `PortfolioItem` — "worked-with" becomes "worked with on *this*". Anchoring requires
+  the acting user to be a party to the relationship AND the project to belong to one of
+  the two parties (as the owning person, or as a business's owner/confirmed member) —
+  otherwise anyone could fabricate a team-history entry on an unrelated project. Does
+  not move `confirmationStatus`; it's additive metadata, not a new trust claim.
+  `listVisibleTeamHistoryForProject()` filters by each party's own
+  `RelationshipParticipantVisibility`, same semantics as the profile relationships
+  panel.
+- **Business-to-person / business-to-business relationships** (`BusinessRelationship`
+  + per-side `BusinessRelationshipParticipantVisibility`/`Evidence`/`Dispute`, service:
+  `business-relationship-service.ts`). A separate table from `Relationship` — reuses
+  the same `RelationshipState`/`ConfirmationStatus`/`Visibility`/`DisputeStatus` enums
+  and the same self-declared → mutually-confirmed, per-side-visibility, disputable
+  shape, but doesn't widen `Relationship`'s party columns (lower regression risk against
+  the existing, test-covered person-to-person invariants). Each side is either a
+  `User` or a `Business` (`partyAType`/`partyBType` + nullable `partyAUserId`/
+  `partyABusinessId` pair per side — DB doesn't enforce "exactly one set", same
+  service-layer-only convention as `PersonSkill.isPrimary`). "Acting for a side" means
+  being that person, or being the business's owner or a `CONFIRMED` `OWNER`/`ADMIN`
+  member. The declaring party can never confirm their own declaration — same rule as
+  `Relationship`.
+- **Structured mentoring programs** (`MentoringProgram`, service:
+  `mentoring-service.ts`). A mutual propose → accept/decline construct with its own
+  lifecycle (`PROPOSED` → `ACTIVE` → `COMPLETED`/`DECLINED`/`CANCELLED`), distinct from
+  both the generic `MENTOR_MENTEE` `RelationshipType` and the one-sided `LEARNING_FROM`
+  declaration. Deliberately does **not** auto-create or auto-confirm a `Relationship`
+  row on acceptance — that would be a second, looser path to "mutually confirmed"
+  alongside `confirmRelationship()`'s flow, which would blur invariant #1 below.
+  `relationshipId` is an optional cross-link only, for when the two people separately
+  hold a `Relationship` they want the program associated with.
+- **Private networks** (`PrivateNetwork`, `PrivateNetworkMembership`,
+  `RelationshipNetworkLink`, service: `private-network-service.ts`). A closed group
+  whose members can see relationships tagged into the network even when a stranger
+  couldn't. Layers **on top of**, never replaces, `RelationshipParticipantVisibility`:
+  `canViewWithNetworkScope()` only narrows — a relationship either party has hidden
+  stays hidden from everyone regardless of network membership. Tagging a relationship
+  into a network requires the acting user to be both a party to the relationship and an
+  active member of the network.
 
 ## Media and uploads
 

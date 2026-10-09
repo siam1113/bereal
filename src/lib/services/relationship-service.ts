@@ -5,12 +5,32 @@ import type {
   Prisma,
   Relationship,
   RelationshipIntent,
+  RelationshipParticipantVisibility,
   RelationshipType,
   Visibility,
 } from "@prisma/client";
 
 export class RelationshipAuthError extends Error {}
 export class RelationshipStateError extends Error {}
+
+/**
+ * Per-participant visibility check: PUBLIC -> anyone, CONNECTIONS -> any signed-in
+ * viewer (see decisions.md for why that's the V1 approximation), PRIVATE -> nobody but
+ * the two parties, hidden -> nobody. Factored out of
+ * profile-relationships-panel.tsx's original inline logic so relationship-graph
+ * extensions (team history, private networks) apply the exact same rule rather than
+ * re-deriving it. Does not special-case the two parties themselves — callers that need
+ * "always visible to the parties" should check that separately, same as the panel does.
+ */
+export function isVisibleToViewer(
+  participantVisibility: Pick<RelationshipParticipantVisibility, "visibility" | "hidden"> | null | undefined,
+  viewerUserId: string | null,
+): boolean {
+  if (!participantVisibility || participantVisibility.hidden) return false;
+  if (participantVisibility.visibility === "PRIVATE") return false;
+  if (participantVisibility.visibility === "CONNECTIONS") return Boolean(viewerUserId);
+  return true;
+}
 
 /**
  * Role label each party gets on a Relationship row, per type. Symmetric types repeat the

@@ -70,14 +70,23 @@ each proving the same shape of invariant against the new constructs:
   being both a party to it and an active network member; network scoping only narrows
   visibility, never overrides a participant's own hide.
 
+`src/lib/services/__tests__/business-service.test.ts` (added during Track 6, business
+tooling) covers the verified-membership tier layered on top of owner-confirmed
+`BusinessMembership` (gating on `CONFIRMED` status, filing a `CredentialClaim`, status
+flipping live once an admin approves it via the existing claims pipeline) and the
+aggregate-only business analytics (owner-only access, self/member view exclusion,
+inquiry counts sourced from the existing `Inquiry` table).
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Seven test files exist, mostly in the relationships/collaboration area (the original
-  V1 suite, Track 2's reference and claim-appeal suites, and the four Track 3 suites
-  above). The plan called for "at minimum, one test per feature area" — Identity,
-  Discovery, Social, and Admin still don't have their own general test suites.
+- Eight test files exist, mostly in the relationships/collaboration area (the original
+  V1 suite, Track 2's reference and claim-appeal suites, the four Track 3 suites, and
+  Track 6's business-service suite). The plan called for "at minimum, one test per
+  feature area" — Discovery, Social, and Admin still don't have their own general test
+  suites (Identity now has partial coverage via the Track 6 business-tooling tests,
+  since `Business`/`BusinessMembership` sit in that entity group per data-model.md).
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

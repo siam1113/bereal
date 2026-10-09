@@ -20,6 +20,7 @@ interface Membership {
   userId: string;
   role: string;
   status: string;
+  verificationClaim: { status: string } | null;
   user: { name: string | null; personProfile: { displayName: string; slug: string } | null };
 }
 
@@ -129,7 +130,14 @@ export default function ManageBusinessPage({ params }: { params: Promise<{ id: s
                   <p className="font-medium text-ink">
                     {m.user.personProfile?.displayName ?? m.user.name}
                   </p>
-                  <Badge variant={m.status === "CONFIRMED" ? "success" : "warning"}>{m.status}</Badge>
+                  <div className="flex gap-2">
+                    <Badge variant={m.status === "CONFIRMED" ? "success" : "warning"}>{m.status}</Badge>
+                    {m.verificationClaim ? (
+                      <Badge variant={m.verificationClaim.status === "APPROVED" ? "success" : "warning"}>
+                        {m.verificationClaim.status === "APPROVED" ? "Verified" : "Verification pending"}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
                 {m.status === "PENDING" ? (
                   <Button size="sm" onClick={() => confirm(m.userId)}>

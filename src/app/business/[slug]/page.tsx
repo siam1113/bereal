@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getBusinessBySlug } from "@/lib/services/business-service";
+import { getBusinessBySlug, getMembershipForViewer, recordStorefrontView } from "@/lib/services/business-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClaimMembershipButton } from "@/components/business/claim-membership-button";
+import { Badge } from "@/components/ui/badge";
+import { MembershipStatusPanel } from "@/components/business/membership-status-panel";
 import { auth } from "@/lib/auth";
 
 export default async function BusinessPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -11,8 +12,15 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
   if (!business) notFound();
 
   const session = await auth();
-  const isOwner = session?.user?.id === business.ownerUserId;
+  const viewerId = session?.user?.id ?? null;
+  const isOwner = viewerId === business.ownerUserId;
   const location = [business.city, business.region, business.country].filter(Boolean).join(", ");
+
+  // Fire-and-forget storefront view tracking (aggregate-only analytics — see
+  // business-service.ts#recordStorefrontView). Never blocks the page render.
+  void recordStorefrontView(business.id, viewerId);
+
+  const viewerMembership = isOwner ? null : await getMembershipForViewer(business.id, viewerId);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-12">
@@ -22,11 +30,16 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
           {location ? <p className="text-sm text-ink-muted">{location}</p> : null}
         </div>
         {isOwner ? (
-          <Link href={`/settings/businesses/${business.id}`} className="text-sm text-accent hover:underline">
-            Manage
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href={`/settings/businesses/${business.id}/analytics`} className="text-sm text-accent hover:underline">
+              Analytics
+            </Link>
+            <Link href={`/settings/businesses/${business.id}`} className="text-sm text-accent hover:underline">
+              Manage
+            </Link>
+          </div>
         ) : session?.user ? (
-          <ClaimMembershipButton businessId={business.id} />
+          <MembershipStatusPanel businessId={business.id} membership={viewerMembership} />
         ) : null}
       </div>
 
@@ -42,10 +55,42 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
               <Link
                 key={m.userId}
                 href={m.user.personProfile ? `/p/${m.user.personProfile.slug}` : "#"}
-                className="rounded-md border border-border px-3 py-2 text-sm hover:bg-accent-soft"
+                className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent-soft"
               >
-                {m.user.personProfile?.displayName ?? m.user.name} · {m.role}
+                <span>
+                  {m.user.personProfile?.displayName ?? m.user.name} · {m.role}
+                </span>
+                {m.verificationClaim?.status === "APPROVED" ? (
+                  <Badge variant="success">Verified</Badge>
+                ) : null}
               </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-display text-lg font-medium text-ink">Services</h2>
+        {business.serviceOfferings.length === 0 ? (
+          <p className="text-sm text-ink-muted">No active services listed yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {business.serviceOfferings.map((service) => (
+              <Card key={service.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">{service.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  <p className="text-sm text-ink-muted">{service.description}</p>
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                    {service.skill ? <Badge variant="outline">{service.skill.name}</Badge> : null}
+                    {service.priceNote ? <span>{service.priceNote}</span> : null}
+                  </div>
+                  <Link href={`/services/${service.id}`} className="text-sm text-accent hover:underline">
+                    View & inquire
+                  </Link>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}

@@ -14,4 +14,5 @@ Documentation for the COMMON V1 build. Start with whichever fits what you're doi
 | [decisions.md](./decisions.md) | You want to know why something was built a particular way, or what's still open. |
 
 The root [`README.md`](../README.md) has the condensed quickstart; this directory has the depth.
-`02_FIVE_YEAR_VISION.md` at the repo root is the longer-term product vision beyond V1.
+[`roadmap/`](./roadmap/README.md) holds the longer-term product direction beyond V1,
+decomposed into independent workstreams each sized for its own Claude Code session.

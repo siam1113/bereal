@@ -7,8 +7,8 @@ trades, arts, agriculture, healthcare-adjacent care, and technology alike.
 
 Full documentation lives in [`docs/`](./docs/README.md) — product thesis, architecture,
 data model, design system, dev setup, testing, deployment, and documented decisions.
-`02_FIVE_YEAR_VISION.md` is the longer-term vision beyond V1. This file is just the
-quickstart.
+[`docs/roadmap/`](./docs/roadmap/README.md) holds the longer-term direction beyond V1,
+broken into independent workstreams. This file is just the quickstart.
 
 ## Stack
 

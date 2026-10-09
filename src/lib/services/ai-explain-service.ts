@@ -21,13 +21,11 @@ export interface MatchExplanation {
  * piece carries zero external-call policy risk regardless of the AI_EXTERNAL_PROVIDER_
  * ENABLED setting.
  *
- * CROSS-TRACK GAP: built against today's *unranked* search-service.ts matchReasons
- * shape (skillMatch / geoMatch / hasPortfolio / availability) — not the richer, ranked
- * matchReasons breakdown Track 1 is supposed to land (this worktree does not have
- * Track 1's changes; see this track's final report). Revisit this function once Track
- * 1 ships its actual matchReasons shape: expand to cite whatever additional signals it
- * adds (e.g. a relevance-score breakdown), still never inventing anything beyond what
- * matchReasons actually contains.
+ * Resolved cross-track note: Track 1's trigram/tsvector ranking landed, but it was
+ * deliberately kept separate from `matchReasons` — the roadmap's explainability
+ * invariant means ranking can reorder results without a blended score replacing this
+ * breakdown, so `matchReasons`'s shape (skillMatch / geoMatch / hasPortfolio /
+ * availability) is unchanged and this function needed no update once Track 1 merged.
  */
 export function explainMatch(result: SearchPersonResult, parsed?: ParsedSearchQuery): MatchExplanation {
   const reasons: string[] = [];

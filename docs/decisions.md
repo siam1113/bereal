@@ -1,5 +1,34 @@
 # Decisions and open questions
 
+## Findings from the Year 2+ integration pass (2026-10-10)
+
+Discovered while merging all 9 roadmap-track branches into `integration/year2-roadmap`
+and verifying the result (lint, typecheck, `pnpm test` against real Postgres, and a
+`pnpm build`) — **both pre-date the 9-track work** and were confirmed by reproducing
+them on plain `main` in an isolated worktree with zero track changes applied:
+
+- **`pnpm build` fails on `/`, `/_global-error`, and `/discover`** with
+  `TypeError: Cannot read properties of null (reading 'useContext')` during static
+  prerendering/export — reproduced identically on `main` before any Year 2+ changes.
+  `pnpm dev` and `pnpm test` are unaffected (confirmed: all merged routes return 200 and
+  render correctly under `next dev`). This directly corroborates the existing "Docker
+  deployment path is unverified" entry below — a real production build has apparently
+  never actually succeeded on this codebase, not just the Docker layer on top of it.
+  Needs investigation before any production deploy; out of scope to fix as part of
+  integrating the 9 tracks.
+- **`pnpm test` doesn't load `DATABASE_URL`/`AUTH_SECRET` from `.env` on its own** —
+  `dotenv` has been listed in `package.json` since the original V1 foundation commit but
+  is never actually invoked (no `vitest.config.ts` setup file, no `--env-file` flag, no
+  `dotenv/config` import anywhere). `next dev`/`next build` load `.env` automatically
+  (Next.js's own behavior); Vitest does not. Tests only ran during this integration pass
+  after manually exporting `.env`'s contents into the shell first. Fix would be a
+  `vitest.config.ts` `setupFiles` entry or wiring the existing `dotenv` dependency in —
+  not done here since it's a pre-existing gap, not something the merge introduced.
+- **No `.env` file existed in the root checkout at all** (only `.env.example`) despite
+  `docs/dev-setup.md`'s quickstart assuming one exists — created one from the example
+  (gitignored, not committed) pointing at the already-running `bereal-postgres-1`
+  container on port 5434 to actually run the verification above.
+
 ## Documented deviations from the original plan
 
 Each of these was a deliberate call made during the build, not an oversight — recorded
@@ -342,16 +371,16 @@ implemented while they're pending, not a resolution:
   search query itself, or the specific bio/portfolio notes a user asked to draft from)
   and any model-proposed skill name is always re-resolved against the real `Skill`
   table before use — it can never surface a hallucinated skill as real.
-- **Track 8's NL-parsing, explanation, drafting, and translation features are built
-  against Track 1's *current*, unranked `search-service.ts`** (`query`/`skillId`/
-  `geoScope`/`availability`/`stage` params; `matchReasons` = `{skillMatch, geoMatch,
-  hasPortfolio, availability}`), not the ranked search with a richer `matchReasons`
-  breakdown the roadmap doc says this track should sit on top of — that hasn't landed
-  in this worktree. `ai-query-parser-service.ts` and `ai-explain-service.ts` both carry
-  "CROSS-TRACK GAP" comments at the point this matters. Once Track 1 ships ranked
-  search, `explainMatch` in particular should be revisited to cite whatever additional
-  relevance signals it adds — still never inventing anything beyond what `matchReasons`
-  actually contains.
+- **Track 8's NL-parsing, explanation, drafting, and translation features were built
+  against Track 1's pre-merge, unranked `search-service.ts`; resolved during
+  integration.** Track 1 has since landed trigram/tsvector ranking, but — per its own
+  explainability invariant — kept `matchReasons`'s shape (`{skillMatch, geoMatch,
+  hasPortfolio, availability}`) unchanged; ranking reorders results without replacing
+  this breakdown with a blended score. `searchPeople()`'s return type did change (now
+  `{ results, total, limit, offset, hasMore }` instead of a bare array) — fixed in
+  `src/app/api/ai/nl-search/route.ts` during integration (destructure `.results`).
+  `ai-explain-service.ts`'s `explainMatch` needed no changes beyond that, since
+  `matchReasons` itself is identical to what it was built against.
 - **AI-generated moderation signals live in their own `AiModerationFlag` table, not in
   `Report`.** Mixing system-generated fraud-detection flags into the human-filed
   `Report` queue would blur exactly the distinction this track's invariants require

@@ -12,14 +12,12 @@ const schema = z.object({
 
 /**
  * Natural-language search: parses free text into search-service.ts#searchPeople's
- * structured params, runs the existing (unranked) search, and attaches a plain-English
- * explanation to each result — docs/roadmap/08-ai-assistance.md "What to build" items
- * 1 and 2, built against Track 1's *current* search-service.ts (see this track's final
- * report for the cross-track gap once Track 1's ranked matchReasons lands).
+ * structured params, runs the existing ranked search (Track 1's trigram/tsvector
+ * blend, now merged), and attaches a plain-English explanation to each result —
+ * docs/roadmap/08-ai-assistance.md "What to build" items 1 and 2.
  *
- * Deliberately a new, separate route rather than editing /api/search/people — Track 1
- * is actively changing search-service.ts and its route in a parallel worktree; adding a
- * new route here avoids colliding with that in-flight work.
+ * Deliberately a separate route rather than editing /api/search/people — kept distinct
+ * since this one layers NL parsing in front of the same underlying search.
  */
 export async function POST(request: Request) {
   const user = await requireUser().catch(() => null);
@@ -35,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const parsedQuery = await parseSearchQuery(parsedBody.data.text);
-  const results = await searchPeople({
+  const { results } = await searchPeople({
     query: parsedQuery.skillId ? undefined : parsedQuery.query,
     skillId: parsedQuery.skillId,
     geoScope: parsedQuery.geoScope,

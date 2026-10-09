@@ -27,6 +27,15 @@ the schema *can't* enforce by itself, which the service layer must.
 - **Messaging/notifications**: `Conversation`, `ConversationParticipant`, `Message`,
   `Notification`.
 - **Safety/ops**: `Report`, `Block`, `AuditEvent`.
+- **Learning & mentorship** (Year-2+ roadmap Track 5 — see
+  [roadmap/05-learning-and-mentorship.md](./roadmap/05-learning-and-mentorship.md)):
+  `MentoringOffer`, `MentoringRequest`, `ExpertSession`, `ExpertSessionBooking`,
+  `LearningCircle`, `LearningCircleMembership`. Deliberately separate from the existing
+  one-sided `LEARNING_FROM` relationship type, which this track leaves untouched —
+  `MentoringOffer`/`MentoringRequest` is the *mutual* counterpart. Accepting a
+  `MentoringRequest` creates a real `MENTOR_MENTEE` `Relationship` by routing through
+  `relationship-service.ts`'s existing request-accept flow rather than inventing a
+  parallel notion of "connected" — see `mentoring-service.ts`.
 
 ## The relationship graph, in detail
 

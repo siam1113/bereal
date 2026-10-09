@@ -62,7 +62,9 @@ docs/                      ← you are here
 
 The app was built as five largely-independent feature areas, each owning its own route
 folders and service files so they could be developed without touching the same files.
-That separation is still a useful map of the codebase:
+That separation is still a useful map of the codebase. A sixth area (Learning &
+mentorship) was added later as Year-2+ roadmap Track 5 — see
+[roadmap/05-learning-and-mentorship.md](./roadmap/05-learning-and-mentorship.md):
 
 | Area | Routes | Services |
 | --- | --- | --- |
@@ -72,6 +74,7 @@ That separation is still a useful map of the codebase:
 | **Discovery & opportunities** | `/discover`, `/help-requests`, `/opportunities`, `/services`, `/settings/services` | `search-service.ts`, `help-request-service.ts`, `opportunity-service.ts`, `service-offering-service.ts` |
 | **Social & messaging** | `/feed`, `/messages`, `/messages/[conversationId]`, `/notifications` | `post-service.ts`, `follow-service.ts`, `message-service.ts`, `notification-service.ts`, `report-service.ts`, `block-service.ts` |
 | **Admin & safety** | `/admin` and its subpages (`skills`, `claims`, `claim-appeals`, `disputes`, `reference-disputes`, `reports`, `badges`, `stage-rules`) — server actions, not a separate `/api/admin/*` tree | `admin-dashboard-service.ts`, `admin-skill-service.ts`, `admin-claim-review-service.ts`, `admin-dispute-service.ts`, `admin-reference-dispute-service.ts`, `admin-report-service.ts`, `admin-badge-service.ts` |
+| **Learning & mentorship** | `/mentoring`, `/mentoring/[id]`, `/mentoring/new`, `/mentoring/requests`, `/expert-sessions`, `/expert-sessions/[id]`, `/expert-sessions/new`, `/expert-sessions/mine`, `/learning-circles`, `/learning-circles/[id]`, `/learning-circles/new`, `/learning-circles/mine` | `mentoring-service.ts`, `expert-session-service.ts`, `learning-circle-service.ts` |
 
 Two shared "hand-off" components cross these boundaries by design:
 

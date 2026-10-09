@@ -1,0 +1,1052 @@
+// COMMON — V1 Prisma schema
+// Source of truth for product rules: /01_V1_BUILD_PLAN.md (sections 2, 4, 6, 7)
+//
+// Cross-cutting invariants enforced by convention (see IMPLEMENTATION_PLAN.md for how
+// the service layer upholds what the DB alone cannot):
+// - A relationship's `confirmationStatus` only moves from SELF_DECLARED to
+//   MUTUALLY_CONFIRMED via an explicit act of the *other* party — never a unilateral edit.
+// - Endorsement/ProfessionalFeedback require a `relationshipId` establishing declared work
+//   history; `status` stays UNVERIFIED unless that relationship is independently confirmed.
+// - Visibility of a relationship is controlled per participant
+//   (RelationshipParticipantVisibility), never globally by one side.
+// - Exact location is never stored for display purposes — only city/region/country labels
+//   plus a deliberately coarsened lat/lng for "local" radius search.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Auth (Auth.js / NextAuth v5 — Prisma adapter model shapes, extended)
+// ============================================================================
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum AccountStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String?
+  email         String        @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          UserRole      @default(USER)
+  status        AccountStatus @default(PENDING_VERIFICATION)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  accounts                Account[]
+  sessions                Session[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+
+  personProfile       PersonProfile?
+  businessMemberships BusinessMembership[]
+  ownedBusinesses     Business[]           @relation("BusinessOwner")
+
+  skillSuggestions    Skill[]              @relation("SkillSuggestedBy")
+  credentialClaims    CredentialClaim[]    @relation("ClaimSubject")
+  verificationReviews VerificationReview[] @relation("ClaimReviewer")
+  badgeAwards         BadgeAward[]         @relation("BadgeRecipient")
+  badgesIssued        BadgeAward[]         @relation("BadgeIssuer")
+
+  relationshipsAsA             Relationship[]                      @relation("RelationshipPartyA")
+  relationshipsAsB             Relationship[]                      @relation("RelationshipPartyB")
+  relationshipsDeclared        Relationship[]                      @relation("RelationshipDeclaredBy")
+  relationshipRequestsSent     RelationshipRequest[]               @relation("RelReqFrom")
+  relationshipRequestsReceived RelationshipRequest[]               @relation("RelReqTo")
+  relationshipVisibilities     RelationshipParticipantVisibility[]
+  relationshipEvidenceAdded    RelationshipEvidence[]
+  relationshipDisputesRaised   RelationshipDispute[]
+
+  endorsementsGiven    Endorsement[]          @relation("EndorsementAuthor")
+  endorsementsReceived Endorsement[]          @relation("EndorsementSubject")
+  feedbackGiven        ProfessionalFeedback[] @relation("FeedbackAuthor")
+  feedbackReceived     ProfessionalFeedback[] @relation("FeedbackSubject")
+
+  posts     Post[]
+  comments  Comment[]
+  reactions Reaction[]
+  following Follow[]   @relation("Follower")
+  followers Follow[]   @relation("Followee")
+
+  helpRequests        HelpRequest[]
+  helpResponses       HelpResponse[]
+  opportunitiesPosted Opportunity[]
+  applications        Application[]
+  serviceOfferings    ServiceOffering[]
+  inquiriesSent       Inquiry[]         @relation("InquiryFrom")
+
+  conversationParticipants ConversationParticipant[]
+  messagesSent             Message[]
+
+  notifications   Notification[]
+  reportsFiled    Report[]       @relation("Reporter")
+  reportsReceived Report[]       @relation("ReportTarget")
+  reportsResolved Report[]       @relation("ReportResolver")
+  blocksInitiated Block[]        @relation("Blocker")
+  blocksReceived  Block[]        @relation("Blocked")
+  auditEvents     AuditEvent[]   @relation("AuditActor")
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expires   DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expires   DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================================
+// Identity: person profiles, businesses, skills
+// ============================================================================
+
+enum AvailabilityStatus {
+  OPEN_TO_WORK
+  OPEN_TO_COLLAB
+  LIMITED
+  NOT_AVAILABLE
+}
+
+model PersonProfile {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  slug              String             @unique
+  displayName       String
+  bio               String?            @db.Text
+  city              String?
+  region            String?
+  country           String?
+  // Deliberately coarsened (rounded to ~city-block precision) — never exact address.
+  approxLat         Float?
+  approxLng         Float?
+  languages         String[]
+  availability      AvailabilityStatus @default(NOT_AVAILABLE)
+  contactPreference Json? // e.g. { allowMessages: true, allowEmailContact: false }
+  headlineSkillId   String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  personSkills      PersonSkill[]
+  portfolioItems    PortfolioItem[]
+  experienceEntries ExperienceEntry[]
+  serviceOfferings  ServiceOffering[]
+
+  @@index([city, region, country])
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?  @db.Text
+  city        String?
+  region      String?
+  country     String?
+  approxLat   Float?
+  approxLng   Float?
+  ownerUserId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner               User                 @relation("BusinessOwner", fields: [ownerUserId], references: [id])
+  memberships         BusinessMembership[]
+  portfolioItems      PortfolioItem[]
+  serviceOfferings    ServiceOffering[]
+  opportunitiesPosted Opportunity[]
+
+  @@index([city, region, country])
+}
+
+enum BusinessMembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum BusinessMembershipStatus {
+  PENDING
+  CONFIRMED
+  DISPUTED
+  REMOVED
+}
+
+model BusinessMembership {
+  id          String                   @id @default(cuid())
+  businessId  String
+  userId      String
+  role        BusinessMembershipRole   @default(MEMBER)
+  status      BusinessMembershipStatus @default(PENDING)
+  claimedAt   DateTime                 @default(now())
+  confirmedAt DateTime?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+}
+
+enum SkillCategoryGroup {
+  TRADES
+  ARTS
+  AGRICULTURE
+  HEALTHCARE_ADJACENT
+  TECHNOLOGY
+  BUSINESS_PROFESSIONAL
+  OTHER
+}
+
+model Skill {
+  id            String             @id @default(cuid())
+  slug          String             @unique
+  name          String
+  categoryGroup SkillCategoryGroup @default(OTHER)
+  isApproved    Boolean            @default(true)
+  suggestedById String?
+  createdAt     DateTime           @default(now())
+
+  suggestedBy      User?                @relation("SkillSuggestedBy", fields: [suggestedById], references: [id])
+  aliases          SkillAlias[]
+  personSkills     PersonSkill[]
+  portfolioItems   PortfolioItemSkill[]
+  helpRequests     HelpRequest[]
+  opportunities    Opportunity[]
+  serviceOfferings ServiceOffering[]
+  endorsements     Endorsement[]
+
+  @@index([categoryGroup])
+}
+
+model SkillAlias {
+  id      String @id @default(cuid())
+  skillId String
+  alias   String
+  locale  String @default("en")
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([alias, locale])
+  @@index([skillId])
+}
+
+enum ProfessionalStage {
+  LEARNING
+  EMERGING
+  PRACTICING
+  ESTABLISHED
+}
+
+model PersonSkill {
+  id              String            @id @default(cuid())
+  personProfileId String
+  skillId         String
+  isPrimary       Boolean           @default(false)
+  stage           ProfessionalStage @default(LEARNING)
+  stageRationale  Json? // criteria snapshot explaining the system-assigned stage
+  stageUpdatedAt  DateTime?
+  yearsPracticing Float?
+  createdAt       DateTime          @default(now())
+
+  personProfile PersonProfile @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
+  skill         Skill         @relation(fields: [skillId], references: [id])
+
+  @@unique([personProfileId, skillId])
+  @@index([skillId, isPrimary])
+}
+
+// ============================================================================
+// Portfolio & experience
+// ============================================================================
+
+enum Visibility {
+  PUBLIC
+  CONNECTIONS
+  PRIVATE
+}
+
+model PortfolioItem {
+  id              String     @id @default(cuid())
+  personProfileId String?
+  businessId      String?
+  title           String
+  description     String?    @db.Text
+  images          String[]
+  tags            String[]
+  links           Json?
+  dateOccurred    DateTime?
+  visibility      Visibility @default(PUBLIC)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  personProfile        PersonProfile?         @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
+  business             Business?              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  skills               PortfolioItemSkill[]
+  relationshipEvidence RelationshipEvidence[]
+
+  @@index([personProfileId])
+  @@index([businessId])
+}
+
+model PortfolioItemSkill {
+  portfolioItemId String
+  skillId         String
+
+  portfolioItem PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  skill         Skill         @relation(fields: [skillId], references: [id])
+
+  @@id([portfolioItemId, skillId])
+}
+
+model ExperienceEntry {
+  id               String    @id @default(cuid())
+  personProfileId  String
+  title            String
+  organizationName String
+  linkedBusinessId String?
+  startDate        DateTime
+  endDate          DateTime?
+  description      String?   @db.Text
+  createdAt        DateTime  @default(now())
+
+  personProfile PersonProfile     @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
+  claims        CredentialClaim[]
+
+  @@index([personProfileId])
+}
+
+// ============================================================================
+// Claims, verification, badges
+// ============================================================================
+
+enum ClaimType {
+  IDENTITY
+  EXPERIENCE
+  CREDENTIAL
+  PROJECT_WORK
+  COMPETENCY
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+model CredentialClaim {
+  id                  String      @id @default(cuid())
+  subjectUserId       String
+  claimType           ClaimType
+  relatedExperienceId String?
+  title               String
+  description         String?     @db.Text
+  evidenceUrls        String[]
+  status              ClaimStatus @default(SUBMITTED)
+  submittedAt         DateTime    @default(now())
+  decidedAt           DateTime?
+
+  subject     User                 @relation("ClaimSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  experience  ExperienceEntry?     @relation(fields: [relatedExperienceId], references: [id])
+  reviews     VerificationReview[]
+  badgeAwards BadgeAward[]
+
+  @@index([subjectUserId, status])
+}
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  REQUEST_MORE_INFO
+  REVOKED
+}
+
+model VerificationReview {
+  id             String         @id @default(cuid())
+  claimId        String
+  reviewerUserId String
+  decision       ReviewDecision
+  notes          String?        @db.Text
+  createdAt      DateTime       @default(now())
+
+  claim    CredentialClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  reviewer User            @relation("ClaimReviewer", fields: [reviewerUserId], references: [id])
+
+  @@index([claimId])
+}
+
+enum BadgeKind {
+  CLAIM_VERIFICATION
+  FEEDBACK_ATTRIBUTE
+  ACHIEVEMENT
+}
+
+model BadgeDefinition {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String    @db.Text
+  kind        BadgeKind
+  criteria    Json // e.g. { minConfirmedFeedback: 3, attribute: "reliability" }
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  awards BadgeAward[]
+}
+
+enum BadgeAwardStatus {
+  ACTIVE
+  REVOKED
+}
+
+model BadgeAward {
+  id                String           @id @default(cuid())
+  badgeDefinitionId String
+  recipientUserId   String
+  basisClaimId      String?
+  basis             Json? // explains derivation, e.g. feedback aggregation refs
+  issuerUserId      String? // null = system-awarded
+  status            BadgeAwardStatus @default(ACTIVE)
+  issuedAt          DateTime         @default(now())
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  badgeDefinition BadgeDefinition  @relation(fields: [badgeDefinitionId], references: [id])
+  recipient       User             @relation("BadgeRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  issuer          User?            @relation("BadgeIssuer", fields: [issuerUserId], references: [id])
+  basisClaim      CredentialClaim? @relation(fields: [basisClaimId], references: [id])
+
+  @@index([recipientUserId, status])
+}
+
+// ============================================================================
+// Relationship graph
+// ============================================================================
+
+enum RelationshipType {
+  WORKED_WITH
+  COLLEAGUE
+  COLLABORATOR
+  CLIENT_PROVIDER
+  MENTOR_MENTEE
+  CONSULTANT_CLIENT
+  BUSINESS_PARTNER
+  FRIEND
+  FAMILY
+  LEARNING_FROM
+}
+
+enum RelationshipState {
+  PROPOSED
+  ACTIVE
+  PAST
+  PLANNED
+}
+
+enum ConfirmationStatus {
+  SELF_DECLARED
+  MUTUALLY_CONFIRMED
+  EVIDENCE_REVIEWED
+}
+
+enum ConsentStatus {
+  NOT_REQUIRED
+  PENDING
+  GRANTED
+  DENIED
+}
+
+enum RelationshipIntent {
+  WANT_TO_COLLABORATE
+  SEEK_MENTORSHIP
+  SEEK_CONSULTATION
+  INTERESTED_IN_HIRING
+  WANT_TO_LEARN
+  SOCIALIZE
+}
+
+// partyA/partyB roles are free-text labels scoped per type (e.g. MENTOR_MENTEE ->
+// "MENTOR"/"MENTEE"; CLIENT_PROVIDER -> "CLIENT"/"PROVIDER"; symmetric types like
+// COLLEAGUE just repeat the type name on both sides). Validated in the service layer
+// against a fixed role map per RelationshipType — not worth a DB enum per type.
+model Relationship {
+  id                 String             @id @default(cuid())
+  type               RelationshipType
+  partyAUserId       String
+  partyARole         String
+  partyBUserId       String
+  partyBRole         String
+  state              RelationshipState  @default(PROPOSED)
+  confirmationStatus ConfirmationStatus @default(SELF_DECLARED)
+  declaredByUserId   String
+  // FAMILY relationships require the named counterpart's consent before the tie can be
+  // shown publicly naming them — see plan section 4.C privacy exception.
+  counterpartConsent ConsentStatus      @default(NOT_REQUIRED)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  partyA     User @relation("RelationshipPartyA", fields: [partyAUserId], references: [id], onDelete: Cascade)
+  partyB     User @relation("RelationshipPartyB", fields: [partyBUserId], references: [id], onDelete: Cascade)
+  declaredBy User @relation("RelationshipDeclaredBy", fields: [declaredByUserId], references: [id])
+
+  visibilities RelationshipParticipantVisibility[]
+  evidence     RelationshipEvidence[]
+  disputes     RelationshipDispute[]
+  endorsements Endorsement[]
+  feedback     ProfessionalFeedback[]
+
+  @@index([partyAUserId, type])
+  @@index([partyBUserId, type])
+}
+
+enum RelationshipRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  WITHDRAWN
+}
+
+model RelationshipRequest {
+  id                      String                    @id @default(cuid())
+  fromUserId              String
+  toUserId                String
+  proposedType            RelationshipType
+  intent                  RelationshipIntent
+  message                 String?                   @db.Text
+  status                  RelationshipRequestStatus @default(PENDING)
+  createdAt               DateTime                  @default(now())
+  respondedAt             DateTime?
+  resultingRelationshipId String?
+
+  from User @relation("RelReqFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("RelReqTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, status])
+  @@index([fromUserId, status])
+}
+
+model RelationshipParticipantVisibility {
+  relationshipId String
+  userId         String
+  visibility     Visibility @default(PUBLIC)
+  hidden         Boolean    @default(false) // participant-specific hide, e.g. one-sided "learning from"
+  updatedAt      DateTime   @updatedAt
+
+  relationship Relationship @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([relationshipId, userId])
+}
+
+model RelationshipEvidence {
+  id              String   @id @default(cuid())
+  relationshipId  String
+  description     String   @db.Text
+  portfolioItemId String?
+  url             String?
+  addedByUserId   String
+  createdAt       DateTime @default(now())
+
+  relationship  Relationship   @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  portfolioItem PortfolioItem? @relation(fields: [portfolioItemId], references: [id])
+  addedBy       User           @relation(fields: [addedByUserId], references: [id])
+
+  @@index([relationshipId])
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_UPHELD
+  RESOLVED_REMOVED
+}
+
+model RelationshipDispute {
+  id              String        @id @default(cuid())
+  relationshipId  String
+  raisedByUserId  String
+  reason          String        @db.Text
+  status          DisputeStatus @default(OPEN)
+  resolutionNotes String?       @db.Text
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+
+  relationship Relationship @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  raisedBy     User         @relation(fields: [raisedByUserId], references: [id])
+
+  @@index([relationshipId])
+}
+
+enum EndorsementStatus {
+  UNVERIFIED
+  VERIFIED
+}
+
+model Endorsement {
+  id             String            @id @default(cuid())
+  endorserUserId String
+  subjectUserId  String
+  skillId        String
+  relationshipId String
+  status         EndorsementStatus @default(UNVERIFIED)
+  comment        String?           @db.Text
+  createdAt      DateTime          @default(now())
+
+  endorser     User         @relation("EndorsementAuthor", fields: [endorserUserId], references: [id], onDelete: Cascade)
+  subject      User         @relation("EndorsementSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  skill        Skill        @relation(fields: [skillId], references: [id])
+  relationship Relationship @relation(fields: [relationshipId], references: [id])
+
+  @@unique([endorserUserId, subjectUserId, skillId])
+  @@index([subjectUserId])
+}
+
+model ProfessionalFeedback {
+  id                       String   @id @default(cuid())
+  authorUserId             String
+  subjectUserId            String
+  relationshipId           String
+  attributes               Json // e.g. { communication: 5, reliability: 4, timeManagement: 5 }
+  comment                  String?  @db.Text
+  isIndependentlyConfirmed Boolean  @default(false) // snapshot of relationship confirmation at write time
+  createdAt                DateTime @default(now())
+
+  author       User         @relation("FeedbackAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  subject      User         @relation("FeedbackSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  relationship Relationship @relation(fields: [relationshipId], references: [id])
+
+  @@index([subjectUserId])
+}
+
+// ============================================================================
+// Social feed
+// ============================================================================
+
+model Post {
+  id                    String     @id @default(cuid())
+  authorUserId          String
+  content               String     @db.Text
+  images                String[]
+  linkedPortfolioItemId String?
+  visibility            Visibility @default(PUBLIC)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  deletedAt             DateTime?
+
+  author    User       @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([authorUserId])
+}
+
+model Comment {
+  id           String    @id @default(cuid())
+  postId       String
+  authorUserId String
+  content      String    @db.Text
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+enum ReactionType {
+  LIKE
+  APPLAUD
+  INSIGHTFUL
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  postId    String
+  userId    String
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Follow {
+  id             String   @id @default(cuid())
+  followerUserId String
+  followeeUserId String
+  createdAt      DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerUserId], references: [id], onDelete: Cascade)
+  followee User @relation("Followee", fields: [followeeUserId], references: [id], onDelete: Cascade)
+
+  @@unique([followerUserId, followeeUserId])
+}
+
+// ============================================================================
+// Opportunity layer: help requests, jobs/gigs, services
+// ============================================================================
+
+enum GeoScope {
+  LOCAL
+  REGION
+  GLOBAL
+}
+
+enum HelpRequestStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model HelpRequest {
+  id           String            @id @default(cuid())
+  authorUserId String
+  title        String
+  description  String            @db.Text
+  skillId      String?
+  geoScope     GeoScope          @default(LOCAL)
+  status       HelpRequestStatus @default(OPEN)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  author    User           @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  skill     Skill?         @relation(fields: [skillId], references: [id])
+  responses HelpResponse[]
+
+  @@index([status, geoScope])
+}
+
+enum HelpResponseStatus {
+  SUBMITTED
+  SHORTLISTED
+  DECLINED
+  ACCEPTED
+}
+
+model HelpResponse {
+  id              String             @id @default(cuid())
+  helpRequestId   String
+  responderUserId String
+  message         String             @db.Text
+  status          HelpResponseStatus @default(SUBMITTED)
+  createdAt       DateTime           @default(now())
+
+  helpRequest HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+  responder   User        @relation(fields: [responderUserId], references: [id], onDelete: Cascade)
+
+  @@index([helpRequestId])
+}
+
+enum OpportunityType {
+  TASK
+  CONTRACT
+  FULL_TIME
+}
+
+enum LocationType {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+enum OpportunityStatus {
+  OPEN
+  CLOSED
+}
+
+model Opportunity {
+  id             String            @id @default(cuid())
+  postedByUserId String
+  businessId     String?
+  type           OpportunityType
+  title          String
+  description    String            @db.Text
+  skillId        String?
+  locationType   LocationType      @default(REMOTE)
+  geoScope       GeoScope          @default(LOCAL)
+  status         OpportunityStatus @default(OPEN)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  postedBy     User          @relation(fields: [postedByUserId], references: [id], onDelete: Cascade)
+  business     Business?     @relation(fields: [businessId], references: [id])
+  skill        Skill?        @relation(fields: [skillId], references: [id])
+  applications Application[]
+
+  @@index([status, type, geoScope])
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  SHORTLISTED
+  REJECTED
+  ACCEPTED
+}
+
+model Application {
+  id              String            @id @default(cuid())
+  opportunityId   String
+  applicantUserId String
+  coverMessage    String?           @db.Text
+  status          ApplicationStatus @default(SUBMITTED)
+  createdAt       DateTime          @default(now())
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User        @relation(fields: [applicantUserId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, applicantUserId])
+}
+
+model ServiceOffering {
+  id              String   @id @default(cuid())
+  personProfileId String?
+  businessId      String?
+  title           String
+  description     String   @db.Text
+  skillId         String?
+  priceNote       String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  personProfile PersonProfile? @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
+  business      Business?      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  skill         Skill?         @relation(fields: [skillId], references: [id])
+  inquiries     Inquiry[]
+  user          User?          @relation(fields: [userId], references: [id])
+  userId        String?
+
+  @@index([personProfileId])
+  @@index([businessId])
+}
+
+enum InquiryStatus {
+  SUBMITTED
+  RESPONDED
+  CLOSED
+}
+
+model Inquiry {
+  id                String        @id @default(cuid())
+  serviceOfferingId String
+  inquirerUserId    String
+  message           String        @db.Text
+  status            InquiryStatus @default(SUBMITTED)
+  createdAt         DateTime      @default(now())
+
+  serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
+  inquirer        User            @relation("InquiryFrom", fields: [inquirerUserId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOfferingId])
+}
+
+// ============================================================================
+// Messaging & notifications
+// ============================================================================
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderUserId   String
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+enum NotificationType {
+  RELATIONSHIP_REQUEST
+  RELATIONSHIP_CONFIRMED
+  RELATIONSHIP_DISPUTED
+  ENDORSEMENT_RECEIVED
+  FEEDBACK_RECEIVED
+  CLAIM_DECISION
+  BADGE_AWARDED
+  POST_COMMENT
+  POST_REACTION
+  NEW_FOLLOWER
+  HELP_RESPONSE
+  APPLICATION_UPDATE
+  INQUIRY_RECEIVED
+  NEW_MESSAGE
+  MODERATION_UPDATE
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  payload   Json
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+// ============================================================================
+// Safety & operations
+// ============================================================================
+
+enum ReportTargetType {
+  USER
+  POST
+  COMMENT
+  MESSAGE
+  RELATIONSHIP
+  BUSINESS
+  PORTFOLIO_ITEM
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  ACTIONED
+  DISMISSED
+}
+
+model Report {
+  id               String           @id @default(cuid())
+  reporterUserId   String
+  targetType       ReportTargetType
+  targetId         String
+  targetUserId     String? // denormalized when the target resolves to a user, for queueing
+  reason           String
+  details          String?          @db.Text
+  status           ReportStatus     @default(OPEN)
+  createdAt        DateTime         @default(now())
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+
+  reporter   User  @relation("Reporter", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("ReportTarget", fields: [targetUserId], references: [id])
+  resolvedBy User? @relation("ReportResolver", fields: [resolvedByUserId], references: [id])
+
+  @@index([status])
+}
+
+model Block {
+  id            String   @id @default(cuid())
+  blockerUserId String
+  blockedUserId String
+  createdAt     DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  targetType  String
+  targetId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}

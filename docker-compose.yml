@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: common
+      POSTGRES_PASSWORD: common_dev_password
+      POSTGRES_DB: common
+    ports:
+      - "5434:5432"
+    volumes:
+      - common_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U common -d common"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+# Object storage: local dev uses the filesystem-backed storage driver (see
+# src/lib/storage/) and needs no container — Docker Hub's MinIO images now require
+# authenticated pulls, so it was dropped from local dev. Production targets any
+# S3-compatible bucket via STORAGE_DRIVER=s3 (see .env.example).
+
+volumes:
+  common_postgres_data:

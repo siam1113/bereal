@@ -217,11 +217,12 @@ model Business {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner               User                 @relation("BusinessOwner", fields: [ownerUserId], references: [id])
+  owner               User                     @relation("BusinessOwner", fields: [ownerUserId], references: [id])
   memberships         BusinessMembership[]
   portfolioItems      PortfolioItem[]
   serviceOfferings    ServiceOffering[]
   opportunitiesPosted Opportunity[]
+  analyticsEvents     BusinessAnalyticsEvent[]
 
   @@index([city, region, country])
 }
@@ -248,10 +249,55 @@ model BusinessMembership {
   claimedAt   DateTime                 @default(now())
   confirmedAt DateTime?
 
+  // --- Verified membership tier (Track 6 — business tooling) ---------------------
+  // Self-declared (PENDING) -> owner-confirmed (CONFIRMED) is the existing tier.
+  // `verificationClaimId` adds a *third* tier on top of CONFIRMED: the member backs
+  // their membership with a `CredentialClaim` (reusing the same admin-reviewed
+  // claim/VerificationReview pipeline as every other claim type — see
+  // data-model.md invariant #8) and an admin approval marks it verified.
+  //
+  // INTEGRATION POINT for Track 2 (Identity & evidence): that track's `Reference`
+  // model/service (src/lib/services/reference-service.ts) is described as "a
+  // confirmed-relationship-gated structured reference, a tier above endorsements."
+  // That is a better-fitting backing primitive for "verified membership" than a
+  // generic CredentialClaim, once it exists. When integrating, prefer swapping this
+  // claim-based link for a Reference-based one (e.g. a membership verification
+  // backed by a Reference from another confirmed business member/owner), or layer
+  // both. This field and `requestMembershipVerification()` in business-service.ts
+  // are the seam to replace/extend — not a parallel system to keep forever.
+  verificationClaimId String?          @unique
+  verificationClaim   CredentialClaim? @relation("MembershipVerificationClaim", fields: [verificationClaimId], references: [id])
+  verifiedAt          DateTime?
+
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, userId])
+}
+
+// ----------------------------------------------------------------------------------
+// Business analytics (Track 6 — business tooling)
+// ----------------------------------------------------------------------------------
+// Deliberately minimal, aggregate-only event log — NOT reusing `AuditEvent` (that
+// table is a safety/moderation audit trail with a different retention and access
+// model). `viewerUserId` is stored only to let a future dedupe/rate-limit pass work;
+// it is never surfaced per-viewer to the business owner — see business-service.ts
+// `getBusinessAnalytics()` and the flagged policy question in docs/decisions.md
+// about re-identification risk in business analytics.
+enum BusinessAnalyticsEventType {
+  STOREFRONT_VIEW
+}
+
+model BusinessAnalyticsEvent {
+  id           String                     @id @default(cuid())
+  businessId   String
+  type         BusinessAnalyticsEventType
+  viewerUserId String?
+  createdAt    DateTime                   @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, type, createdAt])
 }
 
 enum SkillCategoryGroup {
@@ -418,6 +464,9 @@ model CredentialClaim {
   experience  ExperienceEntry?     @relation(fields: [relatedExperienceId], references: [id])
   reviews     VerificationReview[]
   badgeAwards BadgeAward[]
+  // Back-relation for the verified-membership tier (Track 6) — see
+  // BusinessMembership.verificationClaimId for the integration-point note re: Track 2.
+  membershipVerificationFor BusinessMembership? @relation("MembershipVerificationClaim")
 
   @@index([subjectUserId, status])
 }

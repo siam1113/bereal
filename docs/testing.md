@@ -32,12 +32,21 @@ Auth.js's credentials callback, then exercising `/api/relationships/[id]/confirm
 `/api/relationships/[id]/visibility` with real session cookies) during the integration
 pass — not just at the service-function level.
 
+`src/lib/services/__tests__/business-service.test.ts` (added during Track 6, business
+tooling) covers the verified-membership tier layered on top of owner-confirmed
+`BusinessMembership` (gating on `CONFIRMED` status, filing a `CredentialClaim`, status
+flipping live once an admin approves it via the existing claims pipeline) and the
+aggregate-only business analytics (owner-only access, self/member view exclusion,
+inquiry counts sourced from the existing `Inquiry` table).
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Only one test file exists. The plan called for "at minimum, one test per feature area"
-  — Identity, Discovery, Social, and Admin don't have their own test suites yet.
+- Only two test files exist. The plan called for "at minimum, one test per feature area"
+  — Discovery, Social, and Admin don't have their own test suites yet (Identity now has
+  partial coverage via the business-tooling tests above, since `Business`/
+  `BusinessMembership` sit in that entity group per data-model.md).
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

@@ -50,6 +50,8 @@ src/
     <feature>/             ← feature-specific components (feed/, relationships/, ...)
   lib/
     services/              ← business logic — see table below
+    api/                    ← v1 API cross-cutting helpers (auth.ts, http.ts) — see
+                               docs/platform-api.md
     auth.ts, auth-helpers.ts, auth-tokens.ts, password.ts
     storage/                ← pluggable media storage (local disk or S3)
     prisma.ts, mail.ts, rate-limit.ts, audit.ts, slug.ts, utils.ts
@@ -75,6 +77,7 @@ mentorship) was added later as Year-2+ roadmap Track 5 — see
 | **Social & messaging** | `/feed`, `/messages`, `/messages/[conversationId]`, `/notifications` | `post-service.ts`, `follow-service.ts`, `message-service.ts`, `notification-service.ts`, `report-service.ts`, `block-service.ts` |
 | **Admin & safety** | `/admin` and its subpages (`skills`, `claims`, `claim-appeals`, `disputes`, `reference-disputes`, `reports`, `badges`, `stage-rules`) — server actions, not a separate `/api/admin/*` tree | `admin-dashboard-service.ts`, `admin-skill-service.ts`, `admin-claim-review-service.ts`, `admin-dispute-service.ts`, `admin-reference-dispute-service.ts`, `admin-report-service.ts`, `admin-badge-service.ts` |
 | **Learning & mentorship** | `/mentoring`, `/mentoring/[id]`, `/mentoring/new`, `/mentoring/requests`, `/expert-sessions`, `/expert-sessions/[id]`, `/expert-sessions/new`, `/expert-sessions/mine`, `/learning-circles`, `/learning-circles/[id]`, `/learning-circles/new`, `/learning-circles/mine` | `mentoring-service.ts`, `expert-session-service.ts`, `learning-circle-service.ts` |
+| **Platform & API** | `/api/v1/*` (versioned, session- or API-key-authed), `/api/api-keys`, `/settings/api-keys` | `api-key-service.ts`, `auth-service.ts` (register/reset-password/delete-account, extracted from routes), `localization-service.ts` — see [platform-api.md](./platform-api.md) and [localization.md](./localization.md) |
 
 Two shared "hand-off" components cross these boundaries by design:
 

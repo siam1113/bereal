@@ -17,6 +17,11 @@ const SECTIONS = [
     description: "Structured references you've given and received, from confirmed relationships.",
   },
   { href: "/settings/privacy", label: "Privacy", description: "Account deletion and data visibility." },
+  {
+    href: "/settings/api-keys",
+    label: "API keys",
+    description: "Scoped tokens for scripts and non-browser clients.",
+  },
 ];
 
 export default async function SettingsIndexPage() {

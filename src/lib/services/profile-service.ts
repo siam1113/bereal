@@ -16,8 +16,19 @@ export async function getProfileBySlug(slug: string) {
 
 export async function getOwnProfile() {
   const user = await requireUser();
+  return getProfileByUserId(user.id);
+}
+
+/**
+ * Same as `getOwnProfile()` but takes an explicit `userId` instead of resolving it from
+ * the session — used by the versioned API (`/api/v1/*`), which may have authenticated
+ * the caller via a scoped API key rather than a browser session (see
+ * `src/lib/api/auth.ts`). Keeping identity resolution out of this function means it works
+ * identically no matter which auth path resolved the caller.
+ */
+export async function getProfileByUserId(userId: string) {
   return prisma.personProfile.findUniqueOrThrow({
-    where: { userId: user.id },
+    where: { userId },
     include: {
       personSkills: { include: { skill: true }, orderBy: { isPrimary: "desc" } },
     },
@@ -36,8 +47,13 @@ interface ProfileUpdateInput {
 
 export async function updateOwnProfile(input: ProfileUpdateInput) {
   const user = await requireUser();
+  return updateProfileByUserId(user.id, input);
+}
+
+/** See `getProfileByUserId()` — same explicit-identity rationale. */
+export async function updateProfileByUserId(userId: string, input: ProfileUpdateInput) {
   return prisma.personProfile.update({
-    where: { userId: user.id },
+    where: { userId },
     data: input,
   });
 }

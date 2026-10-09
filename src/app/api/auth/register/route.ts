@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { hashPassword, isPasswordStrongEnough } from "@/lib/password";
-import { issueEmailVerificationToken } from "@/lib/auth-tokens";
-import { uniqueSlug } from "@/lib/slug";
+import { registerUser, WeakPasswordError } from "@/lib/services/auth-service";
 import { rateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
@@ -23,37 +20,14 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
-  const { email, password, displayName } = parsed.data;
 
-  if (!isPasswordStrongEnough(password)) {
-    return NextResponse.json({ error: "Password too weak" }, { status: 400 });
+  try {
+    const result = await registerUser(parsed.data);
+    return NextResponse.json(result);
+  } catch (err) {
+    if (err instanceof WeakPasswordError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
   }
-
-  const normalizedEmail = email.toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (existing) {
-    // Don't reveal which emails are registered.
-    return NextResponse.json({ ok: true });
-  }
-
-  const passwordHash = await hashPassword(password);
-  const slug = await uniqueSlug(displayName, async (candidate) => {
-    const found = await prisma.personProfile.findUnique({ where: { slug: candidate } });
-    return !!found;
-  });
-
-  const user = await prisma.user.create({
-    data: {
-      email: normalizedEmail,
-      name: displayName,
-      passwordHash,
-      personProfile: {
-        create: { slug, displayName },
-      },
-    },
-  });
-
-  await issueEmailVerificationToken(user.id);
-
-  return NextResponse.json({ ok: true });
 }

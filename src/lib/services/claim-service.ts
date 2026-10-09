@@ -1,16 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { ClaimType } from "@prisma/client";
 
-// Admin-side review (decideClaim/listClaimsQueue/getClaimDetail/markClaimInReview) already
-// lives in src/lib/services/admin-claim-service.ts — written while this file didn't exist
-// yet. Re-exporting rather than duplicating keeps one source of truth for the review
-// workflow; this file adds the subject-side submission half.
-export {
-  decideClaim,
-  getClaimDetail,
-  listClaimsQueue,
-  markClaimInReview,
-} from "@/lib/services/admin-claim-service";
+// Admin-side review (decideClaim/listClaims/getClaim) lives in
+// src/lib/services/admin-claim-review-service.ts, owned by the admin vertical. This file
+// is the subject-side submission half only — intentionally not re-exporting the admin
+// functions, since nothing outside the admin dashboard needs them and the two services
+// were built independently in parallel.
 
 export async function submitClaim(input: {
   subjectUserId: string;

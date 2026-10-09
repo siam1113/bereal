@@ -7,6 +7,7 @@ import { UserMenu } from "@/components/user-menu";
 const navLinks = [
   { href: "/discover", label: "Discover" },
   { href: "/feed", label: "Feed" },
+  { href: "/relationships", label: "Relationships" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/help-requests", label: "Help requests" },
 ];

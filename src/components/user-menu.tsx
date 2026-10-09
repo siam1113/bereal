@@ -42,6 +42,12 @@ export function UserMenu({ name, email, image, isAdmin, profileSlug }: UserMenuP
         <DropdownMenuItem asChild>
           <Link href="/messages">Messages</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/relationships">Relationships</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/claims">Claims</Link>
+        </DropdownMenuItem>
         {isAdmin ? (
           <DropdownMenuItem asChild>
             <Link href="/admin">Admin dashboard</Link>

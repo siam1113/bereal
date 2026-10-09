@@ -5,6 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
+import { ProfileRelationshipsPanel } from "@/components/relationships/profile-relationships-panel";
+import { ReportButton } from "@/components/safety/report-button";
 
 const STAGE_LABEL: Record<string, string> = {
   LEARNING: "Learning",
@@ -55,7 +57,9 @@ export default async function PublicProfilePage({
           <Link href="/settings/profile" className="text-sm text-accent hover:underline">
             Edit profile
           </Link>
-        ) : null}
+        ) : (
+          <ReportButton targetType="USER" targetId={profile.user.id} targetUserId={profile.user.id} />
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -73,7 +77,7 @@ export default async function PublicProfilePage({
 
       {profile.bio ? <p className="max-w-2xl text-ink">{profile.bio}</p> : null}
 
-      {/* relationships/claims/badges: wired in during integration */}
+      <ProfileRelationshipsPanel profileUserId={profile.user.id} viewerUserId={session?.user?.id ?? null} />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-lg font-medium text-ink">Portfolio</h2>

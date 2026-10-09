@@ -1,26 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProfileBySlug } from "@/lib/services/profile-service";
+import { getLabels, LOCALIZATION_DOMAINS } from "@/lib/services/localization-service";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
 import { ProfileRelationshipsPanel } from "@/components/relationships/profile-relationships-panel";
 import { ReportButton } from "@/components/safety/report-button";
-
-const STAGE_LABEL: Record<string, string> = {
-  LEARNING: "Learning",
-  EMERGING: "Emerging",
-  PRACTICING: "Practicing",
-  ESTABLISHED: "Established",
-};
-
-const AVAILABILITY_LABEL: Record<string, string> = {
-  OPEN_TO_WORK: "Open to work",
-  OPEN_TO_COLLAB: "Open to collaborate",
-  LIMITED: "Limited availability",
-  NOT_AVAILABLE: "Not available",
-};
 
 export default async function PublicProfilePage({
   params,
@@ -30,6 +17,16 @@ export default async function PublicProfilePage({
   const { slug } = await params;
   const profile = await getProfileBySlug(slug);
   if (!profile) notFound();
+
+  // DB-backed labels (see docs/localization.md) replace what used to be hardcoded
+  // Record<string,string> maps here — same `en` strings today, but now a `locale` is a
+  // read-path decision rather than a code change. Fetched in parallel; each call falls
+  // back to its raw enum key if a row is ever missing, so this page never breaks on a
+  // seeding gap.
+  const [stageLabels, availabilityLabels] = await Promise.all([
+    getLabels(LOCALIZATION_DOMAINS.PROFESSIONAL_STAGE),
+    getLabels(LOCALIZATION_DOMAINS.AVAILABILITY_STATUS),
+  ]);
 
   const session = await auth();
   const isOwnProfile = session?.user?.id === profile.user.id;
@@ -50,7 +47,7 @@ export default async function PublicProfilePage({
           <div>
             <h1 className="font-display text-2xl font-medium text-ink">{profile.displayName}</h1>
             {location ? <p className="text-sm text-ink-muted">{location}</p> : null}
-            <p className="text-sm text-ink-muted">{AVAILABILITY_LABEL[profile.availability]}</p>
+            <p className="text-sm text-ink-muted">{availabilityLabels[profile.availability] ?? profile.availability}</p>
           </div>
         </div>
         {isOwnProfile ? (
@@ -65,12 +62,12 @@ export default async function PublicProfilePage({
       <div className="flex flex-wrap gap-2">
         {primarySkill ? (
           <Badge variant="accent">
-            {primarySkill.skill.name} · {STAGE_LABEL[primarySkill.stage]}
+            {primarySkill.skill.name} · {stageLabels[primarySkill.stage] ?? primarySkill.stage}
           </Badge>
         ) : null}
         {secondarySkills.map((ps) => (
           <Badge key={ps.id} variant="neutral">
-            {ps.skill.name} · {STAGE_LABEL[ps.stage]}
+            {ps.skill.name} · {stageLabels[ps.stage] ?? ps.stage}
           </Badge>
         ))}
       </div>

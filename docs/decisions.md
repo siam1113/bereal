@@ -53,6 +53,52 @@ here so nobody "fixes" them without knowing why they're this way.
 - **The Docker deployment path is unverified.** Pattern-correct (standard Next.js
   standalone + Prisma setup) but no actual `docker build` was run against it — see
   [deployment.md](./deployment.md).
+- **(Track 7) The three auth lifecycle routes were the only route handlers in the app
+  with business logic leaking into the route itself.** An audit of every `route.ts`
+  (per the Track 7 roadmap doc's "audit which routes/server actions are thin wrappers"
+  item) found `register`, `reset-password`, and `delete-account` doing Prisma calls and
+  password/token logic directly instead of delegating to a service. Extracted into
+  `src/lib/services/auth-service.ts`; every other API route was already a thin wrapper.
+  (The admin dashboard's server actions still call Prisma directly by design — see the
+  dedicated bullet above; that was an already-settled exception, not something this
+  audit reopened.)
+- **(Track 7) `next-intl` is a recorded library decision, not a wired integration.**
+  Added to `package.json` as the chosen library for future full UI-string translation.
+  Deliberately not wired into any route/layout/component yet — see
+  [localization.md](./localization.md). The thing actually wired end-to-end this track
+  is `LocalizedLabel` (a DB table for enum-backed display labels), demonstrated in
+  `src/app/p/[slug]/page.tsx`. Don't treat the unused `next-intl` dependency as dead
+  code to remove; it's a placeholder for work explicitly out of this track's scope
+  ("plumbing only," per the roadmap doc).
+
+## Policy questions flagged, not decided (Track 7 — Platform, API & native clients)
+
+The Track 7 roadmap doc calls these out explicitly as "policy questions to flag, not
+decide silently" — real decisions that need a human, not a default an agent should pick
+alone. Both are **flagged here, still open**; what follows is the conservative default
+implemented while they're pending, not a resolution:
+
+- **Auth model for non-browser clients.** Implemented: scoped API keys
+  (`ApiKey` model + `src/lib/services/api-key-service.ts`), each tied to exactly one
+  `User`, carrying an explicit narrow `scopes` list chosen at creation time, minted only
+  from an authenticated web session, default 90-day expiry, user-revocable. This was
+  chosen specifically because it's the most conservative of the options the roadmap doc
+  named (API keys vs. OAuth client credentials vs. mobile app attestation) — it can
+  never grant more than the issuing user's own session already could, and there's no new
+  credential-issuing surface. **This default still needs explicit human sign-off before
+  being treated as the final answer** — in particular, whether OAuth client credentials
+  will eventually be needed for genuine third-party (not same-user-owned) partner
+  integrations is unaddressed by this design, which assumes the caller and the resource
+  owner are always the same person.
+- **Whether/which partner integrations are even planned.** Not decided here, and
+  deliberately not built around: `/api/v1/*` exists because the original build
+  instruction required business logic to sit behind typed service interfaces for *any*
+  future consumer (native app, integration, search engine), not because a specific
+  partner integration is scheduled. No partner-specific auth flow, rate-limit tier, or
+  data-sharing agreement exists. Building more than the generic versioned surface
+  without a named consumer risks the roadmap's own "feature sprawl" risk-register entry
+  — deliberately stopped at a generic API-key auth model plus the existing service
+  surface, nothing partner-specific.
 
 ## Open questions before a public launch
 

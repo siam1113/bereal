@@ -104,6 +104,8 @@ model User {
   blocksReceived  Block[]        @relation("Blocked")
   auditEvents     AuditEvent[]   @relation("AuditActor")
 
+  apiKeys ApiKey[]
+
   @@index([email])
 }
 
@@ -1049,4 +1051,54 @@ model AuditEvent {
 
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// Platform & API (Track 7 — scoped API keys for non-browser clients)
+// ============================================================================
+//
+// Conservative-by-design: an ApiKey is always tied to exactly one User (the same
+// account a browser session would authenticate as) and carries an explicit, narrow
+// `scopes` list the key's owner chose at creation time — never a broad bearer token
+// that grants everything the user could do. Keys are minted by the user themselves
+// from an authenticated web session (see /settings/api-keys), not through a separate
+// credential-issuing flow, so there is exactly one place a password ever gets checked.
+// `requireApiUser()` (src/lib/auth-helpers.ts) enforces the requested scope is a subset
+// of the key's scopes before resolving the underlying user — the API surface then runs
+// the identical service-layer calls a session-authenticated request would, so it can
+// never bypass confirmation/visibility/claim-review invariants enforced there.
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  keyPrefix  String // first few chars of the plaintext token, shown in the UI so a user can tell keys apart; never enough to guess the rest
+  keyHash    String    @unique // sha256 of the full plaintext token; the plaintext itself is never stored
+  scopes     String[] // subset of API_SCOPES (src/lib/services/api-key-service.ts); validated at creation, not DB-enforced
+  lastUsedAt DateTime?
+  expiresAt  DateTime? // nullable but createApiKey() always sets a default (90 days) unless the caller opts into a longer bound
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================================
+// Localization groundwork (Track 7) — extends the SkillAlias.locale pattern to
+// other enum-backed display labels (professional stage names, skill category group
+// names, ...) that today are hardcoded Record<string,string> maps in page components.
+// This is plumbing only: V1 ships `en` rows equivalent to today's hardcoded labels,
+// not translation coverage. See docs/localization.md.
+// ============================================================================
+
+model LocalizedLabel {
+  id     String @id @default(cuid())
+  domain String // e.g. "PROFESSIONAL_STAGE", "SKILL_CATEGORY_GROUP" — matches a Prisma enum name by convention, not enforced
+  key    String // the enum value, e.g. "LEARNING", "TRADES"
+  locale String @default("en")
+  label  String
+
+  @@unique([domain, key, locale])
+  @@index([domain, locale])
 }

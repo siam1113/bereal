@@ -42,6 +42,7 @@
     "nanoid": "^6.0.2",
     "next": "16.4.0",
     "next-auth": "5.0.0-beta.32",
+    "next-intl": "^4.14.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "resend": "^6.32.1",

@@ -11,6 +11,8 @@ Documentation for the COMMON V1 build. Start with whichever fits what you're doi
 | [dev-setup.md](./dev-setup.md) | You're setting up the project locally. |
 | [testing.md](./testing.md) | You're writing or running tests. |
 | [deployment.md](./deployment.md) | You're deploying to production. |
+| [platform-api.md](./platform-api.md) | You're building against or extending the versioned `/api/v1/*` surface or API keys. |
+| [localization.md](./localization.md) | You're touching enum-backed display labels or planning further i18n work. |
 | [decisions.md](./decisions.md) | You want to know why something was built a particular way, or what's still open. |
 
 The root [`README.md`](../README.md) has the condensed quickstart; this directory has the depth.

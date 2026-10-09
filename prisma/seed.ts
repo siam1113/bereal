@@ -1,5 +1,6 @@
 import { PrismaClient, type Prisma, type SkillCategoryGroup } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedDefaultLocalizedLabels } from "../src/lib/services/localization-service";
 
 const prisma = new PrismaClient();
 
@@ -569,6 +570,9 @@ async function seedOpportunityLayer(people: Map<string, { userId: string; profil
 }
 
 async function main() {
+  console.log("Seeding localized labels...");
+  await seedDefaultLocalizedLabels();
+
   console.log("Seeding skills...");
   const skillIds = await seedSkills();
 

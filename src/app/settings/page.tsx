@@ -12,6 +12,11 @@ const SECTIONS = [
   { href: "/relationships", label: "Relationships", description: "Manage ties, requests, and visibility." },
   { href: "/claims", label: "Claims", description: "Identity, credential, and project claims under review." },
   { href: "/settings/privacy", label: "Privacy", description: "Account deletion and data visibility." },
+  {
+    href: "/settings/api-keys",
+    label: "API keys",
+    description: "Scoped tokens for scripts and non-browser clients.",
+  },
 ];
 
 export default async function SettingsIndexPage() {

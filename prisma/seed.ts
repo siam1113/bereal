@@ -1,4 +1,4 @@
-import { PrismaClient, type SkillCategoryGroup } from "@prisma/client";
+import { PrismaClient, type Prisma, type SkillCategoryGroup } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -273,17 +273,23 @@ async function seedPeople(skillIds: Map<string, string>) {
       });
     }
 
-    await prisma.portfolioItem.create({
-      data: {
-        personProfileId: profileId,
-        title: `${p.name.split(" ")[0]}'s recent work`,
-        description: `A representative project showcasing ${p.primarySkill.replace(/-/g, " ")}.`,
-        images: [],
-        tags: [p.primarySkill],
-        visibility: "PUBLIC",
-        dateOccurred: new Date(),
-      },
+    const portfolioTitle = `${p.name.split(" ")[0]}'s recent work`;
+    const existingPortfolioItem = await prisma.portfolioItem.findFirst({
+      where: { personProfileId: profileId, title: portfolioTitle },
     });
+    if (!existingPortfolioItem) {
+      await prisma.portfolioItem.create({
+        data: {
+          personProfileId: profileId,
+          title: portfolioTitle,
+          description: `A representative project showcasing ${p.primarySkill.replace(/-/g, " ")}.`,
+          images: [],
+          tags: [p.primarySkill],
+          visibility: "PUBLIC",
+          dateOccurred: new Date(),
+        },
+      });
+    }
   }
 
   return bySlug;
@@ -354,87 +360,105 @@ async function seedRelationships(people: Map<string, { userId: string; profileId
   const farida = people.get("farida-begum")!;
   const kamal = people.get("kamal-hossain")!;
 
+  async function findOrCreateRelationship(data: Prisma.RelationshipUncheckedCreateInput) {
+    const existing = await prisma.relationship.findFirst({
+      where: { type: data.type, partyAUserId: data.partyAUserId, partyBUserId: data.partyBUserId },
+    });
+    if (existing) return { relationship: existing, created: false };
+    const relationship = await prisma.relationship.create({ data });
+    return { relationship, created: true };
+  }
+
   // Mutually confirmed WORKED_WITH between Rashid and Hasan (rewired a workshop together).
-  const workedWith = await prisma.relationship.create({
-    data: {
-      type: "WORKED_WITH",
-      partyAUserId: rashid.userId,
-      partyARole: "WORKED_WITH",
-      partyBUserId: hasan.userId,
-      partyBRole: "WORKED_WITH",
-      state: "PAST",
-      confirmationStatus: "MUTUALLY_CONFIRMED",
-      declaredByUserId: rashid.userId,
-    },
+  const { relationship: workedWith, created: workedWithCreated } = await findOrCreateRelationship({
+    type: "WORKED_WITH",
+    partyAUserId: rashid.userId,
+    partyARole: "WORKED_WITH",
+    partyBUserId: hasan.userId,
+    partyBRole: "WORKED_WITH",
+    state: "PAST",
+    confirmationStatus: "MUTUALLY_CONFIRMED",
+    declaredByUserId: rashid.userId,
   });
-  await prisma.relationshipParticipantVisibility.createMany({
-    data: [
-      { relationshipId: workedWith.id, userId: rashid.userId, visibility: "PUBLIC" },
-      { relationshipId: workedWith.id, userId: hasan.userId, visibility: "PUBLIC" },
-    ],
-  });
-  await prisma.relationshipEvidence.create({
-    data: {
-      relationshipId: workedWith.id,
-      description: "Rewired and rebuilt cabinetry for a client's kitchen renovation together.",
-      addedByUserId: rashid.userId,
-    },
-  });
+  if (workedWithCreated) {
+    await prisma.relationshipParticipantVisibility.createMany({
+      data: [
+        { relationshipId: workedWith.id, userId: rashid.userId, visibility: "PUBLIC" },
+        { relationshipId: workedWith.id, userId: hasan.userId, visibility: "PUBLIC" },
+      ],
+    });
+    await prisma.relationshipEvidence.create({
+      data: {
+        relationshipId: workedWith.id,
+        description: "Rewired and rebuilt cabinetry for a client's kitchen renovation together.",
+        addedByUserId: rashid.userId,
+      },
+    });
+  }
 
   // Self-declared LEARNING_FROM: Tariq learning from an established painter persona (use Amina as stand-in mentor for cross-craft inspiration demo).
-  const learningFrom = await prisma.relationship.create({
-    data: {
-      type: "LEARNING_FROM",
-      partyAUserId: tariq.userId,
-      partyARole: "LEARNER",
-      partyBUserId: amina.userId,
-      partyBRole: "SUBJECT",
-      state: "ACTIVE",
-      confirmationStatus: "SELF_DECLARED",
-      declaredByUserId: tariq.userId,
-    },
+  const { relationship: learningFrom, created: learningFromCreated } = await findOrCreateRelationship({
+    type: "LEARNING_FROM",
+    partyAUserId: tariq.userId,
+    partyARole: "LEARNER",
+    partyBUserId: amina.userId,
+    partyBRole: "SUBJECT",
+    state: "ACTIVE",
+    confirmationStatus: "SELF_DECLARED",
+    declaredByUserId: tariq.userId,
   });
-  await prisma.relationshipParticipantVisibility.createMany({
-    data: [
-      { relationshipId: learningFrom.id, userId: tariq.userId, visibility: "PUBLIC" },
-      { relationshipId: learningFrom.id, userId: amina.userId, visibility: "PUBLIC", hidden: false },
-    ],
-  });
+  if (learningFromCreated) {
+    await prisma.relationshipParticipantVisibility.createMany({
+      data: [
+        { relationshipId: learningFrom.id, userId: tariq.userId, visibility: "PUBLIC" },
+        { relationshipId: learningFrom.id, userId: amina.userId, visibility: "PUBLIC", hidden: false },
+      ],
+    });
+  }
 
   // Disputed consultant/client relationship between Kamal and Farida.
-  const disputed = await prisma.relationship.create({
-    data: {
-      type: "CONSULTANT_CLIENT",
-      partyAUserId: kamal.userId,
-      partyARole: "CONSULTANT",
-      partyBUserId: farida.userId,
-      partyBRole: "CLIENT",
-      state: "PAST",
-      confirmationStatus: "SELF_DECLARED",
-      declaredByUserId: kamal.userId,
-    },
+  const { relationship: disputed, created: disputedCreated } = await findOrCreateRelationship({
+    type: "CONSULTANT_CLIENT",
+    partyAUserId: kamal.userId,
+    partyARole: "CONSULTANT",
+    partyBUserId: farida.userId,
+    partyBRole: "CLIENT",
+    state: "PAST",
+    confirmationStatus: "SELF_DECLARED",
+    declaredByUserId: kamal.userId,
   });
-  await prisma.relationshipParticipantVisibility.createMany({
-    data: [
-      { relationshipId: disputed.id, userId: kamal.userId, visibility: "PUBLIC" },
-      { relationshipId: disputed.id, userId: farida.userId, visibility: "PUBLIC" },
-    ],
-  });
-  await prisma.relationshipDispute.create({
-    data: {
-      relationshipId: disputed.id,
-      raisedByUserId: farida.userId,
-      reason: "We only had one brief phone consultation, not an ongoing engagement as implied.",
-      status: "OPEN",
-    },
-  });
+  if (disputedCreated) {
+    await prisma.relationshipParticipantVisibility.createMany({
+      data: [
+        { relationshipId: disputed.id, userId: kamal.userId, visibility: "PUBLIC" },
+        { relationshipId: disputed.id, userId: farida.userId, visibility: "PUBLIC" },
+      ],
+    });
+    await prisma.relationshipDispute.create({
+      data: {
+        relationshipId: disputed.id,
+        raisedByUserId: farida.userId,
+        reason: "We only had one brief phone consultation, not an ongoing engagement as implied.",
+        status: "OPEN",
+      },
+    });
+  }
 
   // Unverified endorsement riding on the self-declared learning relationship (should NOT grant a verified badge).
-  await prisma.endorsement.create({
-    data: {
+  const textilePatternSkill = await prisma.skill.findUniqueOrThrow({ where: { slug: "textile-pattern-design" } });
+  await prisma.endorsement.upsert({
+    where: {
+      endorserUserId_subjectUserId_skillId: {
+        endorserUserId: tariq.userId,
+        subjectUserId: amina.userId,
+        skillId: textilePatternSkill.id,
+      },
+    },
+    update: {},
+    create: {
       endorserUserId: tariq.userId,
       subjectUserId: amina.userId,
-      skillId: (await prisma.skill.findUniqueOrThrow({ where: { slug: "textile-pattern-design" } })).id,
+      skillId: textilePatternSkill.id,
       relationshipId: learningFrom.id,
       status: "UNVERIFIED",
       comment: "Amina's pattern work taught me a lot about composition even outside textiles.",
@@ -442,16 +466,21 @@ async function seedRelationships(people: Map<string, { userId: string; profileId
   });
 
   // Confirmed feedback riding on the mutually confirmed WORKED_WITH relationship.
-  await prisma.professionalFeedback.create({
-    data: {
-      authorUserId: hasan.userId,
-      subjectUserId: rashid.userId,
-      relationshipId: workedWith.id,
-      attributes: { communication: 5, reliability: 5, timeManagement: 4 },
-      comment: "Rashid was clear about scope and always on time.",
-      isIndependentlyConfirmed: true,
-    },
+  const existingFeedback = await prisma.professionalFeedback.findFirst({
+    where: { authorUserId: hasan.userId, subjectUserId: rashid.userId, relationshipId: workedWith.id },
   });
+  if (!existingFeedback) {
+    await prisma.professionalFeedback.create({
+      data: {
+        authorUserId: hasan.userId,
+        subjectUserId: rashid.userId,
+        relationshipId: workedWith.id,
+        attributes: { communication: 5, reliability: 5, timeManagement: 4 },
+        comment: "Rashid was clear about scope and always on time.",
+        isIndependentlyConfirmed: true,
+      },
+    });
+  }
 }
 
 async function seedBadges() {
@@ -484,40 +513,59 @@ async function seedOpportunityLayer(people: Map<string, { userId: string; profil
   const rashid = people.get("rashid-islam")!;
   const carpentrySkill = await prisma.skill.findUniqueOrThrow({ where: { slug: "carpentry" } });
 
-  await prisma.helpRequest.create({
-    data: {
-      authorUserId: mitu.userId,
-      title: "Need a custom bookshelf built",
-      description: "Looking for a carpenter in Dhaka to build a floor-to-ceiling bookshelf, budget flexible.",
-      skillId: carpentrySkill.id,
-      geoScope: "LOCAL",
-      status: "OPEN",
-    },
+  const helpRequestTitle = "Need a custom bookshelf built";
+  const existingHelpRequest = await prisma.helpRequest.findFirst({
+    where: { authorUserId: mitu.userId, title: helpRequestTitle },
   });
+  if (!existingHelpRequest) {
+    await prisma.helpRequest.create({
+      data: {
+        authorUserId: mitu.userId,
+        title: helpRequestTitle,
+        description: "Looking for a carpenter in Dhaka to build a floor-to-ceiling bookshelf, budget flexible.",
+        skillId: carpentrySkill.id,
+        geoScope: "LOCAL",
+        status: "OPEN",
+      },
+    });
+  }
 
-  await prisma.opportunity.create({
-    data: {
-      postedByUserId: rashid.userId,
-      businessId: business.id,
-      type: "CONTRACT",
-      title: "Workshop assistant needed for 3 months",
-      description: "Assist with cabinetry projects, on-site in Dhaka, flexible hours.",
-      skillId: carpentrySkill.id,
-      locationType: "ONSITE",
-      geoScope: "LOCAL",
-      status: "OPEN",
-    },
+  const opportunityTitle = "Workshop assistant needed for 3 months";
+  const existingOpportunity = await prisma.opportunity.findFirst({
+    where: { postedByUserId: rashid.userId, title: opportunityTitle },
   });
+  if (!existingOpportunity) {
+    await prisma.opportunity.create({
+      data: {
+        postedByUserId: rashid.userId,
+        businessId: business.id,
+        type: "CONTRACT",
+        title: opportunityTitle,
+        description: "Assist with cabinetry projects, on-site in Dhaka, flexible hours.",
+        skillId: carpentrySkill.id,
+        locationType: "ONSITE",
+        geoScope: "LOCAL",
+        status: "OPEN",
+      },
+    });
+  }
 
-  await prisma.serviceOffering.create({
-    data: {
-      personProfileId: people.get("rashid-islam")!.profileId,
-      title: "Custom furniture commissions",
-      description: "Bespoke furniture design and build, from kitchens to bookshelves.",
-      skillId: carpentrySkill.id,
-      priceNote: "Quoted per project",
-    },
+  const serviceTitle = "Custom furniture commissions";
+  const rashidProfileId = people.get("rashid-islam")!.profileId;
+  const existingService = await prisma.serviceOffering.findFirst({
+    where: { personProfileId: rashidProfileId, title: serviceTitle },
   });
+  if (!existingService) {
+    await prisma.serviceOffering.create({
+      data: {
+        personProfileId: rashidProfileId,
+        title: serviceTitle,
+        description: "Bespoke furniture design and build, from kitchens to bookshelves.",
+        skillId: carpentrySkill.id,
+        priceNote: "Quoted per project",
+      },
+    });
+  }
 }
 
 async function main() {

@@ -273,14 +273,15 @@ model Skill {
   suggestedById String?
   createdAt     DateTime           @default(now())
 
-  suggestedBy      User?                @relation("SkillSuggestedBy", fields: [suggestedById], references: [id])
-  aliases          SkillAlias[]
-  personSkills     PersonSkill[]
-  portfolioItems   PortfolioItemSkill[]
-  helpRequests     HelpRequest[]
-  opportunities    Opportunity[]
-  serviceOfferings ServiceOffering[]
-  endorsements     Endorsement[]
+  suggestedBy          User?                 @relation("SkillSuggestedBy", fields: [suggestedById], references: [id])
+  aliases              SkillAlias[]
+  personSkills         PersonSkill[]
+  portfolioItems       PortfolioItemSkill[]
+  helpRequests         HelpRequest[]
+  opportunities        Opportunity[]
+  opportunityTeamSlots OpportunityTeamSlot[]
+  serviceOfferings     ServiceOffering[]
+  endorsements         Endorsement[]
 
   @@index([categoryGroup])
 }
@@ -827,11 +828,23 @@ enum OpportunityStatus {
   CLOSED
 }
 
+// Track 4 (opportunity network): a discriminator on the existing Opportunity shape
+// rather than a parallel model, per docs/roadmap/04-opportunity-network.md's own
+// guidance to check that first. All new fields below are optional/defaulted so
+// existing STANDARD rows (V1's task/contract/full-time opportunities) are unaffected.
+enum OpportunityKind {
+  STANDARD
+  MICROTASK
+  APPRENTICESHIP
+  TEAM_PROJECT
+}
+
 model Opportunity {
   id             String            @id @default(cuid())
   postedByUserId String
   businessId     String?
   type           OpportunityType
+  kind           OpportunityKind   @default(STANDARD)
   title          String
   description    String            @db.Text
   skillId        String?
@@ -841,12 +854,53 @@ model Opportunity {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  postedBy     User          @relation(fields: [postedByUserId], references: [id], onDelete: Cascade)
-  business     Business?     @relation(fields: [businessId], references: [id])
+  // MICROTASK fields — short, bounded, optionally-recurring work. No budget/price
+  // field by design: payments/escrow stay out of scope for this track (see roadmap doc).
+  estimatedHours Int?
+  isRecurring    Boolean @default(false)
+  recurrenceNote String?
+
+  // APPRENTICESHIP fields — structured duration + a free-text focus area.
+  // NOT WIRED: docs/roadmap/04-opportunity-network.md expects this to reference
+  // Track 3's project/team-history anchoring (`RelationshipProjectLink` model,
+  // `listTeamHistoryForProject`/`listVisibleTeamHistoryForProject` in
+  // team-history-service.ts) and likely Track 5's mentoring construct. Neither exists
+  // in this worktree (both tracks are on separate branches). `mentorshipFocus` is a
+  // deliberately plain free-text stand-in — do not treat it as the real integration;
+  // a human integrator should replace/augment it with an actual link to those once
+  // merged. See final build report / docs/decisions.md for the flagged gap.
+  durationWeeks   Int?
+  mentorshipFocus String? @db.Text
+
+  postedBy     User                  @relation(fields: [postedByUserId], references: [id], onDelete: Cascade)
+  business     Business?             @relation(fields: [businessId], references: [id])
+  skill        Skill?                @relation(fields: [skillId], references: [id])
+  applications Application[]
+  teamSlots    OpportunityTeamSlot[]
+
+  @@index([status, type, geoScope])
+  @@index([kind])
+}
+
+// TEAM_PROJECT only: "need N people with skills X, Y for project Z" — a roster of
+// open roles distinct from a single-hire Opportunity. Applicants apply to a specific
+// slot (Application.teamSlotId); the poster assembles the team by accepting
+// applications per slot. No stored "filled" counter — filled headcount is always
+// derived by counting ACCEPTED applications for the slot, same philosophy as the rest
+// of this schema (no redundant state to drift out of sync).
+model OpportunityTeamSlot {
+  id              String   @id @default(cuid())
+  opportunityId   String
+  roleTitle       String
+  skillId         String?
+  headcountNeeded Int      @default(1)
+  createdAt       DateTime @default(now())
+
+  opportunity  Opportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   skill        Skill?        @relation(fields: [skillId], references: [id])
   applications Application[]
 
-  @@index([status, type, geoScope])
+  @@index([opportunityId])
 }
 
 enum ApplicationStatus {
@@ -860,14 +914,17 @@ model Application {
   id              String            @id @default(cuid())
   opportunityId   String
   applicantUserId String
+  teamSlotId      String?
   coverMessage    String?           @db.Text
   status          ApplicationStatus @default(SUBMITTED)
   createdAt       DateTime          @default(now())
 
-  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  applicant   User        @relation(fields: [applicantUserId], references: [id], onDelete: Cascade)
+  opportunity Opportunity          @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User                 @relation(fields: [applicantUserId], references: [id], onDelete: Cascade)
+  teamSlot    OpportunityTeamSlot? @relation(fields: [teamSlotId], references: [id], onDelete: Cascade)
 
-  @@unique([opportunityId, applicantUserId])
+  @@unique([opportunityId, applicantUserId, teamSlotId])
+  @@index([teamSlotId])
 }
 
 model ServiceOffering {

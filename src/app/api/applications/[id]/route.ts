@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, ForbiddenError } from "@/lib/auth-helpers";
-import { setApplicationStatus } from "@/lib/services/opportunity-service";
+import { OpportunitySlotCapacityError, setApplicationStatus } from "@/lib/services/opportunity-service";
 
 const schema = z.object({ status: z.enum(["SUBMITTED", "SHORTLISTED", "REJECTED", "ACCEPTED"]) });
 
@@ -17,6 +17,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ application: updated });
   } catch (err) {
     if (err instanceof ForbiddenError) return NextResponse.json({ error: err.message }, { status: 403 });
+    if (err instanceof OpportunitySlotCapacityError) return NextResponse.json({ error: err.message }, { status: 409 });
     throw err;
   }
 }

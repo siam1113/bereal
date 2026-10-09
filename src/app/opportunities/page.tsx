@@ -4,6 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+const KIND_LABELS: Record<string, string> = {
+  STANDARD: "Standard",
+  MICROTASK: "Microtask",
+  APPRENTICESHIP: "Apprenticeship",
+  TEAM_PROJECT: "Team project",
+};
+
 export default async function OpportunitiesPage() {
   const opportunities = await listOpportunities({});
 
@@ -24,6 +31,7 @@ export default async function OpportunitiesPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="font-display text-lg text-ink">{op.title}</h3>
                   <div className="flex gap-2">
+                    {op.kind !== "STANDARD" ? <Badge variant="accent">{KIND_LABELS[op.kind]}</Badge> : null}
                     <Badge variant="accent">{op.type}</Badge>
                     <Badge variant="outline">{op.locationType}</Badge>
                   </div>

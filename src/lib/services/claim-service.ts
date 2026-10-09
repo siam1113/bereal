@@ -38,7 +38,12 @@ export async function listMyClaims(subjectUserId: string) {
 export async function getMyClaimDetail(claimId: string, subjectUserId: string) {
   const claim = await prisma.credentialClaim.findUnique({
     where: { id: claimId },
-    include: { reviews: { orderBy: { createdAt: "asc" } } },
+    include: {
+      reviews: { orderBy: { createdAt: "asc" } },
+      // Track 2 (identity & evidence): appeals path — the subject's own claim view
+      // needs to see its appeal history to decide whether to appeal again.
+      appeals: { orderBy: { createdAt: "desc" } },
+    },
   });
   if (!claim || claim.subjectUserId !== subjectUserId) return null;
   return claim;

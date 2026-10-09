@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 async function decideAction(formData: FormData) {
   "use server";
@@ -18,7 +19,9 @@ async function decideAction(formData: FormData) {
     | "REQUEST_MORE_INFO"
     | "REVOKED";
   const notes = String(formData.get("notes") ?? "");
-  await decideClaim(claimId, admin.id, decision, notes || undefined);
+  const expiresAtRaw = String(formData.get("expiresAt") ?? "");
+  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : undefined;
+  await decideClaim(claimId, admin.id, decision, notes || undefined, expiresAt);
   revalidatePath(`/admin/claims/${claimId}`);
   revalidatePath("/admin/claims");
 }
@@ -55,6 +58,11 @@ export default async function AdminClaimDetailPage({
               <span className="text-ink-muted">Description:</span> {claim.description}
             </p>
           ) : null}
+          {claim.expiresAt ? (
+            <p>
+              <span className="text-ink-muted">Expires:</span> {claim.expiresAt.toLocaleDateString()}
+            </p>
+          ) : null}
           {claim.evidenceUrls.length > 0 ? (
             <div>
               <p className="text-ink-muted">Evidence:</p>
@@ -79,6 +87,8 @@ export default async function AdminClaimDetailPage({
               <input type="hidden" name="claimId" value={claim.id} />
               <Label htmlFor="notes">Review notes</Label>
               <Textarea id="notes" name="notes" placeholder="Optional notes for the audit trail" />
+              <Label htmlFor="expiresAt">Expires (optional, only applied if approved)</Label>
+              <Input id="expiresAt" name="expiresAt" type="date" />
               <div className="flex flex-wrap gap-2">
                 <Button name="decision" value="APPROVED" type="submit">
                   Approve

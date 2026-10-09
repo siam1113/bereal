@@ -4,6 +4,7 @@ import { canShowCounterpartIdentity } from "@/lib/services/relationship-service"
 import { listBadgesForUser } from "@/lib/services/badge-service";
 import { listEndorsementsReceived } from "@/lib/services/endorsement-service";
 import { listFeedbackReceived } from "@/lib/services/feedback-service";
+import { listReferencesForProfile } from "@/lib/services/reference-service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -50,11 +51,23 @@ export async function ProfileRelationshipsPanel({
     return true;
   });
 
-  const [badges, endorsements, feedback] = await Promise.all([
+  const [badges, endorsements, feedback, allReferences] = await Promise.all([
     listBadgesForUser(profileUserId),
     listEndorsementsReceived(profileUserId),
     listFeedbackReceived(profileUserId),
+    listReferencesForProfile(profileUserId),
   ]);
+
+  // Same per-viewer visibility rule as relationships, but on the Reference's own
+  // `visibility` field (subject-controlled) rather than a separate join table —
+  // there's only ever one side that can render a Reference (the subject's profile).
+  const isProfileOwner = viewerUserId === profileUserId;
+  const visibleReferences = allReferences.filter((reference) => {
+    if (isProfileOwner || viewerUserId === reference.authorUserId) return true;
+    if (reference.visibility === "PRIVATE") return false;
+    if (reference.visibility === "CONNECTIONS") return Boolean(viewerUserId);
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -142,6 +155,30 @@ export async function ProfileRelationshipsPanel({
                   {f.comment ? <p className="mt-1 text-xs text-ink-muted">{f.comment}</p> : null}
                 </CardContent>
               </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {visibleReferences.length > 0 ? (
+        <section>
+          <h2 className="font-display text-lg font-medium text-ink">References</h2>
+          <p className="mt-1 text-xs text-ink-muted">
+            A structured reference from a mutually confirmed relationship — a stronger evidence
+            tier than feedback, still reviewed by a human if disputed, never a trust score.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {visibleReferences.map((reference) => (
+              <Link key={reference.id} href={`/references/${reference.id}`}>
+                <Card className="transition-colors hover:border-border-strong">
+                  <CardContent className="flex items-center justify-between gap-4 p-4">
+                    <p className="text-sm text-ink">From {reference.author.name ?? "someone"}</p>
+                    <Badge variant={reference.status === "DISPUTED" ? "warning" : "success"}>
+                      {reference.status === "DISPUTED" ? "Disputed" : "Reference"}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         </section>

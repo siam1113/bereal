@@ -192,6 +192,12 @@ model PersonProfile {
   headlineSkillId   String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  // Generated tsvector over displayName (weight A) + bio (weight B), maintained by
+  // Postgres itself (GENERATED ALWAYS AS ... STORED — see the search-fulltext
+  // migration). Prisma has no native tsvector type, hence Unsupported; the GIN index
+  // below is declared so `prisma migrate dev` diffing doesn't try to drop what the
+  // hand-written migration SQL created. Never written to from application code.
+  searchVector Unsupported("tsvector")?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -201,6 +207,11 @@ model PersonProfile {
   serviceOfferings  ServiceOffering[]
 
   @@index([city, region, country])
+  @@index([searchVector], type: Gin)
+  // Trigram indexes back similarity()-based fuzzy ranking/typo tolerance, separate
+  // from the tsvector above (which handles word-level full-text relevance).
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([bio(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model Business {
@@ -283,6 +294,10 @@ model Skill {
   endorsements     Endorsement[]
 
   @@index([categoryGroup])
+  // Trigram index for fuzzy/typo-tolerant matching on skill names (search-fulltext
+  // migration creates this with `gin_trgm_ops`; declared here so schema diffing
+  // doesn't try to drop it).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model SkillAlias {
@@ -295,6 +310,7 @@ model SkillAlias {
 
   @@unique([alias, locale])
   @@index([skillId])
+  @@index([alias(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 enum ProfessionalStage {

@@ -32,12 +32,27 @@ Auth.js's credentials callback, then exercising `/api/relationships/[id]/confirm
 `/api/relationships/[id]/visibility` with real session cookies) during the integration
 pass — not just at the service-function level.
 
+`src/lib/services/__tests__/search-service.test.ts` covers the Track 1 (search &
+discovery, `docs/roadmap/01-search-and-discovery.md`) invariants: secondary skills are
+fully searchable (not just primary), the `matchReasons` breakdown stays explainable
+instead of collapsing into a blended score, trigram similarity actually gives
+typo-tolerant matching, pagination (`limit`/`offset`/`total`/`hasMore`) is real, the two
+flagged policy decisions hold (unapproved skills never surface via text match,
+`PortfolioItem.visibility` gates the portfolio evidence signal — see
+[decisions.md](./decisions.md)), and no precise-location field ever leaks onto a result.
+One fixture note for anyone adding cases here: don't include the test file's run-scoped
+`RUN_ID` suffix inside a *query string* used in an assertion — every fixture's
+name/bio/skill-name in the file carries that same suffix, so a query containing it will
+trigram-match unrelated fixtures purely on the shared substring, independent of the
+thing you're actually trying to test.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Only one test file exists. The plan called for "at minimum, one test per feature area"
-  — Identity, Discovery, Social, and Admin don't have their own test suites yet.
+- Two test files exist (relationships, search/discovery). The plan called for "at
+  minimum, one test per feature area" — Identity, Social, and Admin don't have their own
+  test suites yet.
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

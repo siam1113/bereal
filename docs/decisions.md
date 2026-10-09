@@ -25,8 +25,27 @@ here so nobody "fixes" them without knowing why they're this way.
   (`PersonSkill.stage`/`stageRationale`) and an admin-visible criteria table exist; a
   fully automated per-profession rules engine does not. `/admin/stage-rules` says so
   in its own UI rather than implying more automation than exists.
-- **Search is `ILIKE`/array-overlap, not trigram or a dedicated engine.** Matches the
-  plan's own "initially" guidance; revisit if result quality or query latency demands it.
+- **Search is now Postgres full-text + trigram ranked, not plain `ILIKE`/array-overlap.**
+  (Track 1, `docs/roadmap/01-search-and-discovery.md`.) A generated, stored `tsvector`
+  column on `PersonProfile` (`displayName` weight A, `bio` weight B) plus `pg_trgm` GIN
+  indexes on `PersonProfile.displayName`/`bio`, `Skill.name`, and `SkillAlias.alias` back
+  a blended `ts_rank` + trigram-similarity order (typo-tolerant), replacing `updatedAt
+  desc`. Deliberately stops short of a dedicated search engine (Meilisearch/Typesense/
+  Elasticsearch) or semantic/embedding matching — revisit only if measured latency or
+  result quality demands more, per the roadmap's own stage-gating. Two policy calls made
+  as part of this track, flagged per the roadmap doc rather than decided silently:
+  - **Unapproved/pending skills (`Skill.isApproved: false`) never surface a profile via
+    skill-name/alias text matching**, in both `searchPeople` and `searchSkillsForPicker`
+    — matches the pre-existing picker behavior. A profile can still surface through its
+    own displayName/bio text; only the skill-identity channel is gated. This is a
+    starting default, not a settled policy — revisit if there's a product reason
+    unapproved skills should surface (ranked lower, say) rather than being invisible to
+    search entirely.
+  - **`PortfolioItem.visibility` now gates search's portfolio evidence signal** —
+    `hasPortfolio`/`portfolioCount` count `PUBLIC` items only, matching what
+    `getProfileBySlug()` actually renders on the profile page itself. Before this track,
+    search counted all portfolio items regardless of visibility, which could show
+    "has portfolio" evidence for private work a searcher couldn't actually see.
 - **The admin dashboard uses Next.js server actions, not a separate `/api/admin/*`
   route tree.** Functionally equivalent to the rest of the app's REST-ish API routes,
   fewer files, and nothing outside the admin pages needs these over HTTP.

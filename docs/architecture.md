@@ -67,10 +67,10 @@ That separation is still a useful map of the codebase:
 | Area | Routes | Services |
 | --- | --- | --- |
 | **Identity & profiles** | `/login`, `/signup`, `/onboarding`, `/p/[slug]`, `/business/[slug]`, `/settings/{profile,portfolio,experience,businesses}` | `profile-service.ts`, `business-service.ts`, `skill-service.ts`, `portfolio-service.ts`, `experience-service.ts` |
-| **Relationships, claims & badges** | `/relationships`, `/relationships/requests`, `/relationships/[id]`, `/claims`, `/claims/[id]`, `/badges/[id]` | `relationship-service.ts`, `claim-service.ts`, `badge-service.ts`, `endorsement-service.ts`, `feedback-service.ts` |
+| **Relationships, claims & badges** | `/relationships`, `/relationships/requests`, `/relationships/[id]`, `/claims`, `/claims/[id]`, `/badges/[id]`, `/references`, `/references/[id]` | `relationship-service.ts`, `claim-service.ts`, `badge-service.ts`, `endorsement-service.ts`, `feedback-service.ts`, `reference-service.ts`, `claim-appeal-service.ts` |
 | **Discovery & opportunities** | `/discover`, `/help-requests`, `/opportunities`, `/services`, `/settings/services` | `search-service.ts`, `help-request-service.ts`, `opportunity-service.ts`, `service-offering-service.ts` |
 | **Social & messaging** | `/feed`, `/messages`, `/messages/[conversationId]`, `/notifications` | `post-service.ts`, `follow-service.ts`, `message-service.ts`, `notification-service.ts`, `report-service.ts`, `block-service.ts` |
-| **Admin & safety** | `/admin` and its subpages (`skills`, `claims`, `disputes`, `reports`, `badges`, `stage-rules`) — server actions, not a separate `/api/admin/*` tree | `admin-dashboard-service.ts`, `admin-skill-service.ts`, `admin-claim-review-service.ts`, `admin-dispute-service.ts`, `admin-report-service.ts`, `admin-badge-service.ts` |
+| **Admin & safety** | `/admin` and its subpages (`skills`, `claims`, `claim-appeals`, `disputes`, `reference-disputes`, `reports`, `badges`, `stage-rules`) — server actions, not a separate `/api/admin/*` tree | `admin-dashboard-service.ts`, `admin-skill-service.ts`, `admin-claim-review-service.ts`, `admin-dispute-service.ts`, `admin-reference-dispute-service.ts`, `admin-report-service.ts`, `admin-badge-service.ts` |
 
 Two shared "hand-off" components cross these boundaries by design:
 

@@ -32,12 +32,35 @@ Auth.js's credentials callback, then exercising `/api/relationships/[id]/confirm
 `/api/relationships/[id]/visibility` with real session cookies) during the integration
 pass — not just at the service-function level.
 
+`src/lib/services/__tests__/reference-service.test.ts` (Track 2 — identity &
+evidence, year 2 roadmap) exercises:
+
+1. `createReference()` refuses a reference against a `SELF_DECLARED` relationship and
+   succeeds once it's `MUTUALLY_CONFIRMED` — the stronger gate than
+   endorsements/feedback.
+2. Only someone actually party to the relationship can author a reference about the
+   other party.
+3. Only the subject can change a reference's visibility or dispute it.
+4. Disputing flips `Reference.status` to `DISPUTED` and opens a `ReferenceDispute`; a
+   `REVOKED` reference can't be disputed again.
+5. `isReferenceExpired()`'s lazy expiry check.
+
+`src/lib/services/__tests__/claim-appeal-service.test.ts` (same track) exercises:
+
+1. A claim can't be appealed until it's actually been decided (`REJECTED`/`REVOKED`).
+2. Only the claim's own subject can appeal it.
+3. A claim can't have two open appeals at once.
+4. Resolving an appeal records the outcome but never mutates `CredentialClaim.status`
+   by itself — reversing a decision still requires the explicit `decideClaim()` path.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Only one test file exists. The plan called for "at minimum, one test per feature area"
-  — Identity, Discovery, Social, and Admin don't have their own test suites yet.
+- Three test files exist (relationship confirmation, plus Track 2's reference and
+  claim-appeal invariants above). The plan called for "at minimum, one test per
+  feature area" — Identity, Discovery, Social, and Admin still don't have their own
+  general test suites; Track 2 only covers the specific invariants it added.
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

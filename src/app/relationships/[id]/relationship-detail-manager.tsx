@@ -57,6 +57,14 @@ export function RelationshipDetailManager({
   const [reliability, setReliability] = useState(4);
   const [timeManagement, setTimeManagement] = useState(4);
 
+  // Reference: a stronger evidence tier than endorsement/feedback — only offered once
+  // the relationship is itself confirmed (never on a self-declared one).
+  const canWriteReference = rel.confirmationStatus === "MUTUALLY_CONFIRMED" || rel.confirmationStatus === "EVIDENCE_REVIEWED";
+  const [referenceComment, setReferenceComment] = useState("");
+  const [refCommunication, setRefCommunication] = useState(4);
+  const [refReliability, setRefReliability] = useState(4);
+  const [refTimeManagement, setRefTimeManagement] = useState(4);
+
   async function withBusy(fn: () => Promise<void>) {
     setBusy(true);
     try {
@@ -197,6 +205,34 @@ export function RelationshipDetailManager({
       }
       toast.success("Feedback submitted.");
       setFeedbackComment("");
+      router.refresh();
+    });
+  }
+
+  async function submitReference(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await withBusy(async () => {
+      const res = await fetch("/api/references", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subjectUserId: counterpart.id,
+          relationshipId: rel.id,
+          attributes: {
+            communication: refCommunication,
+            reliability: refReliability,
+            timeManagement: refTimeManagement,
+          },
+          comment: referenceComment || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(body?.error ?? "Couldn't submit that reference.");
+        return;
+      }
+      toast.success("Reference submitted.");
+      setReferenceComment("");
       router.refresh();
     });
   }
@@ -412,6 +448,48 @@ export function RelationshipDetailManager({
           </form>
         </CardContent>
       </Card>
+
+      {canWriteReference ? (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="font-display text-lg font-medium text-ink">Write a reference</h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              A stronger, structured evidence tier above endorsements/feedback — only available
+              because this relationship is mutually confirmed. {counterpart.name ?? "They"} controls
+              whether this shows on their own profile, and can dispute it.
+            </p>
+            <form onSubmit={submitReference} className="mt-3 flex flex-col gap-3">
+              {[
+                { label: "Communication", value: refCommunication, set: setRefCommunication },
+                { label: "Reliability", value: refReliability, set: setRefReliability },
+                { label: "Time management", value: refTimeManagement, set: setRefTimeManagement },
+              ].map((attr) => (
+                <div key={attr.label}>
+                  <Label>
+                    {attr.label}: {attr.value}/5
+                  </Label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={5}
+                    value={attr.value}
+                    onChange={(e) => attr.set(Number(e.target.value))}
+                    className="mt-1 w-full"
+                  />
+                </div>
+              ))}
+              <Textarea
+                placeholder="Comment (optional)"
+                value={referenceComment}
+                onChange={(e) => setReferenceComment(e.target.value)}
+              />
+              <Button type="submit" size="sm" disabled={busy} className="self-start">
+                Submit reference
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent className="p-5">

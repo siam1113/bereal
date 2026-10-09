@@ -53,6 +53,35 @@ here so nobody "fixes" them without knowing why they're this way.
 - **The Docker deployment path is unverified.** Pattern-correct (standard Next.js
   standalone + Prisma setup) but no actual `docker build` was run against it — see
   [deployment.md](./deployment.md).
+- **Track 2 (identity & evidence, year 2 roadmap): `Reference`'s visibility is
+  subject-controlled, not author-controlled.** A `Reference` only ever renders on the
+  *subject's* profile (unlike `Relationship`, which renders on both parties' profiles
+  and so needs one `RelationshipParticipantVisibility` row per side), so it carries a
+  single `visibility` field gated to the subject (`setReferenceVisibility()` in
+  `reference-service.ts`) rather than a per-participant table. Conservative/reversible
+  choice made in the absence of an explicit spec answer; revisit if an author-side use
+  case (e.g. "references I've written") ever needs its own visibility control.
+- **Track 2: resolving a `RelationshipDispute`-shaped contest (`ReferenceDispute`,
+  `ClaimAppeal`) never itself mutates the underlying `Reference`/`CredentialClaim`.**
+  Mirrors the pre-existing `resolveDispute()` behavior for `RelationshipDispute` (which
+  also only records the resolution, not a cascading status change). Revoking a
+  reference or reversing a claim decision is a separate, explicit, independently
+  audited action (`revokeReference()`, `decideClaim()`) — chosen so every status
+  change always has its own direct audit event, never one implied by a dispute/appeal
+  record alone. This is a conservative call in the absence of a specified workflow;
+  revisit if admins want resolution and reversal combined into one action.
+- **Track 2: `ClaimAppeal`/`ReferenceDispute` reuse the existing `DisputeStatus` enum**
+  (`OPEN`/`UNDER_REVIEW`/`RESOLVED_UPHELD`/`RESOLVED_REMOVED`) rather than each
+  defining their own — they're structurally the same "contest raised against a
+  decision" shape as `RelationshipDispute`, and reusing it keeps the schema from
+  accumulating near-duplicate enums.
+- **Track 2: expiry is evaluated lazily on read, not by a background job.** No
+  scheduler/cron infra exists in this app (confirmed against architecture.md before
+  adding this). `CredentialClaim.expiresAt`/`BadgeAward.expiresAt`/`Reference.expiresAt`
+  are nullable fields callers check at render time
+  (`isClaimExpired()`/`isBadgeAwardExpired()`/`isReferenceExpired()`); `badge-service.ts`
+  additionally exposes an explicit, admin-invoked `expireOverdueBadgeAwards()` sweep
+  rather than a cron job that doesn't exist yet.
 
 ## Open questions before a public launch
 
@@ -71,6 +100,19 @@ build, and shouldn't be assumed settled just because the app works:
   more than it affects the code.
 - Brand clearance: "COMMON" is a provisional working name; trademark and domain
   availability were never checked.
+- **Track 2 (identity & evidence):** minimum reference count and anti-collusion
+  criteria before a `Reference` contributes to a badge or stage signal — same open
+  question already flagged above for feedback-derived badges, deliberately not
+  resolved for references either. No code path currently lets a `Reference` feed a
+  badge/stage decision automatically; it is evidence for a human to read, same as
+  every other claim type.
+- **Track 2:** which claim/reference types should qualify for automatic acceptance
+  versus mandatory human review — V1 and this track both route every claim/reference
+  through a human (admin review for claims; a confirmed-relationship gate plus
+  dispute/appeal path for references), but nothing optimizes which ones *could* skip
+  review.
+- **Track 2:** appeal/dispute SLA and who specifically adjudicates (same admin queue
+  as existing moderation, today — no separate appeals reviewer role was introduced).
 
 ## V1 launch constraints (from the original spec, still true)
 

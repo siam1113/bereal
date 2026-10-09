@@ -63,6 +63,7 @@ model User {
   skillSuggestions    Skill[]              @relation("SkillSuggestedBy")
   credentialClaims    CredentialClaim[]    @relation("ClaimSubject")
   verificationReviews VerificationReview[] @relation("ClaimReviewer")
+  claimAppealsRaised  ClaimAppeal[]        @relation("ClaimAppealRaisedBy")
   badgeAwards         BadgeAward[]         @relation("BadgeRecipient")
   badgesIssued        BadgeAward[]         @relation("BadgeIssuer")
 
@@ -75,10 +76,13 @@ model User {
   relationshipEvidenceAdded    RelationshipEvidence[]
   relationshipDisputesRaised   RelationshipDispute[]
 
-  endorsementsGiven    Endorsement[]          @relation("EndorsementAuthor")
-  endorsementsReceived Endorsement[]          @relation("EndorsementSubject")
-  feedbackGiven        ProfessionalFeedback[] @relation("FeedbackAuthor")
-  feedbackReceived     ProfessionalFeedback[] @relation("FeedbackSubject")
+  endorsementsGiven       Endorsement[]          @relation("EndorsementAuthor")
+  endorsementsReceived    Endorsement[]          @relation("EndorsementSubject")
+  feedbackGiven           ProfessionalFeedback[] @relation("FeedbackAuthor")
+  feedbackReceived        ProfessionalFeedback[] @relation("FeedbackSubject")
+  referencesGiven         Reference[]            @relation("ReferenceAuthor")
+  referencesReceived      Reference[]            @relation("ReferenceSubject")
+  referenceDisputesRaised ReferenceDispute[]     @relation("ReferenceDisputeRaisedBy")
 
   posts     Post[]
   comments  Comment[]
@@ -413,13 +417,50 @@ model CredentialClaim {
   status              ClaimStatus @default(SUBMITTED)
   submittedAt         DateTime    @default(now())
   decidedAt           DateTime?
+  // Track 2 (identity & evidence): time-bound claims (e.g. a credential that lapses)
+  // can carry an expiry; null means "doesn't expire". Revocation already has a path via
+  // ClaimStatus.REVOKED + a VerificationReview(decision: REVOKED) row, which already
+  // carries the reviewer/notes/timestamp audit trail — these two fields just add the
+  // same reason/when shape Badge already has for REVOKED, for callers that want to read
+  // "why revoked" off the claim itself instead of joining to its latest review.
+  revokedAt           DateTime?
+  revokedReason       String?     @db.Text
+  expiresAt           DateTime?
 
   subject     User                 @relation("ClaimSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
   experience  ExperienceEntry?     @relation(fields: [relatedExperienceId], references: [id])
   reviews     VerificationReview[]
   badgeAwards BadgeAward[]
+  appeals     ClaimAppeal[]
 
   @@index([subjectUserId, status])
+}
+
+/**
+ * Appeals path for a claim decision the subject contests (typically after REJECTED or
+ * REVOKED). Reuses `DisputeStatus` — same OPEN/UNDER_REVIEW/RESOLVED_UPHELD/
+ * RESOLVED_REMOVED shape as RelationshipDispute and ReferenceDispute: an appeal is
+ * structurally "a contest raised against a decision", same as those. Resolving an
+ * appeal does NOT itself mutate CredentialClaim.status (mirrors resolveDispute's
+ * existing behavior for relationships) — an admin who overturns an appeal re-reviews
+ * the claim explicitly via the existing decideClaim path, so there is always a
+ * VerificationReview row explaining any status change, never an implicit one from the
+ * appeal alone. See docs/decisions.md for why this stays manual rather than automatic.
+ */
+model ClaimAppeal {
+  id              String        @id @default(cuid())
+  claimId         String
+  raisedByUserId  String
+  reason          String        @db.Text
+  status          DisputeStatus @default(OPEN)
+  resolutionNotes String?       @db.Text
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+
+  claim    CredentialClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  raisedBy User            @relation("ClaimAppealRaisedBy", fields: [raisedByUserId], references: [id])
+
+  @@index([claimId])
 }
 
 enum ReviewDecision {
@@ -478,6 +519,12 @@ model BadgeAward {
   issuedAt          DateTime         @default(now())
   revokedAt         DateTime?
   revokedReason     String?
+  // Track 2 (identity & evidence): time-bound badges (e.g. a feedback-derived
+  // attribute that should lapse without fresh evidence) can carry an expiry; null
+  // means "doesn't expire". Nothing currently flips status on expiry automatically —
+  // see expireOverdueBadgeAwards() in badge-service.ts, which is an explicit call, not
+  // a cron job (no scheduler infra exists in this app yet).
+  expiresAt         DateTime?
 
   badgeDefinition BadgeDefinition  @relation(fields: [badgeDefinitionId], references: [id])
   recipient       User             @relation("BadgeRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
@@ -562,6 +609,7 @@ model Relationship {
   disputes     RelationshipDispute[]
   endorsements Endorsement[]
   feedback     ProfessionalFeedback[]
+  references   Reference[]
 
   @@index([partyAUserId, type])
   @@index([partyBUserId, type])
@@ -685,6 +733,78 @@ model ProfessionalFeedback {
   relationship Relationship @relation(fields: [relationshipId], references: [id])
 
   @@index([subjectUserId])
+}
+
+// ----------------------------------------------------------------------------
+// Track 2 (identity & evidence, year 2 roadmap): a third evidence tier above
+// self-claim (CredentialClaim) and admin-reviewed claim — a structured REFERENCE left
+// by someone with a CONFIRMED relationship to the subject. Stronger gate than
+// Endorsement/ProfessionalFeedback, which only require a *declared* (not necessarily
+// confirmed) relationship — see createReference() in reference-service.ts.
+// ----------------------------------------------------------------------------
+
+enum ReferenceStatus {
+  SUBMITTED
+  DISPUTED
+  REVOKED
+}
+
+model Reference {
+  id             String          @id @default(cuid())
+  authorUserId   String
+  subjectUserId  String
+  relationshipId String
+  // Structured, scoped attributes — same shape convention as
+  // ProfessionalFeedback.attributes (e.g. { communication: 5, reliability: 4 }), not
+  // freeform-only text, per the track doc's "structured content" requirement.
+  attributes     Json
+  comment        String?         @db.Text
+  status         ReferenceStatus @default(SUBMITTED)
+  // Controlled by the SUBJECT only (reference-service.setReferenceVisibility enforces
+  // this) — mirrors RelationshipParticipantVisibility's "each side controls their own
+  // display" pattern, collapsed to one field since only the subject's profile ever
+  // renders a Reference about them.
+  visibility     Visibility      @default(PUBLIC)
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  revokedReason  String?         @db.Text
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  author       User               @relation("ReferenceAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  subject      User               @relation("ReferenceSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  relationship Relationship       @relation(fields: [relationshipId], references: [id])
+  disputes     ReferenceDispute[]
+
+  // One reference per author/subject/relationship — an author can still leave a
+  // separate reference anchored to a *different* confirmed relationship with the same
+  // subject (e.g. worked together twice, years apart), matching the product's general
+  // "multiple relationship types/instances between the same two people" stance.
+  @@unique([authorUserId, subjectUserId, relationshipId])
+  @@index([subjectUserId, status])
+}
+
+/**
+ * The subject's path to contest a reference written about them — same contest shape
+ * as RelationshipDispute/ClaimAppeal (reuses DisputeStatus). Resolving a dispute here
+ * does NOT itself change Reference.status; an admin who finds the dispute valid uses
+ * the separate, explicit revokeReference() action so there is always a direct
+ * admin-attributable audit event for any status change, not an implicit one.
+ */
+model ReferenceDispute {
+  id              String        @id @default(cuid())
+  referenceId     String
+  raisedByUserId  String
+  reason          String        @db.Text
+  status          DisputeStatus @default(OPEN)
+  resolutionNotes String?       @db.Text
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+
+  reference Reference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  raisedBy  User      @relation("ReferenceDisputeRaisedBy", fields: [raisedByUserId], references: [id])
+
+  @@index([referenceId])
 }
 
 // ============================================================================

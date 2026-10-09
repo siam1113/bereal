@@ -11,6 +11,11 @@ const SECTIONS = [
   { href: "/settings/services", label: "Services", description: "Service offerings you list for inquiries." },
   { href: "/relationships", label: "Relationships", description: "Manage ties, requests, and visibility." },
   { href: "/claims", label: "Claims", description: "Identity, credential, and project claims under review." },
+  {
+    href: "/references",
+    label: "References",
+    description: "Structured references you've given and received, from confirmed relationships.",
+  },
   { href: "/settings/privacy", label: "Privacy", description: "Account deletion and data visibility." },
 ];
 

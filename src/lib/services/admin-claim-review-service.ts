@@ -41,6 +41,10 @@ export async function decideClaim(
   reviewerUserId: string,
   decision: ReviewDecision,
   notes: string | undefined,
+  // Track 2 (identity & evidence): only meaningful on APPROVED — e.g. "this
+  // credential verification is valid until X". Optional; most claim types don't
+  // expire, so leaving it unset keeps today's behavior unchanged.
+  expiresAt?: Date,
 ) {
   const [, claim] = await prisma.$transaction([
     prisma.verificationReview.create({
@@ -48,7 +52,16 @@ export async function decideClaim(
     }),
     prisma.credentialClaim.update({
       where: { id: claimId },
-      data: { status: DECISION_TO_STATUS[decision], decidedAt: new Date() },
+      data: {
+        status: DECISION_TO_STATUS[decision],
+        decidedAt: new Date(),
+        expiresAt: decision === "APPROVED" ? expiresAt ?? null : undefined,
+        // Keep the revoke reason/timestamp readable directly off the claim, same
+        // shape BadgeAward already uses, without replacing the VerificationReview
+        // row as the actual audit trail — that still always gets written above.
+        revokedAt: decision === "REVOKED" ? new Date() : undefined,
+        revokedReason: decision === "REVOKED" ? notes ?? null : undefined,
+      },
     }),
   ]);
 
@@ -61,4 +74,9 @@ export async function decideClaim(
   });
 
   return claim;
+}
+
+/** Lazy expiry check — evaluated on read, no scheduler/cron exists in this app. */
+export function isClaimExpired(claim: { expiresAt: Date | null }): boolean {
+  return Boolean(claim.expiresAt && claim.expiresAt.getTime() < Date.now());
 }

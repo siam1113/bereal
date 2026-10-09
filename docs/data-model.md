@@ -9,10 +9,11 @@ the schema *can't* enforce by itself, which the service layer must.
 - **Auth**: `User`, `Account`, `Session`, `EmailVerificationToken`, `PasswordResetToken`.
 - **Identity**: `PersonProfile`, `Business`, `BusinessMembership`, `Skill`,
   `SkillAlias`, `PersonSkill`, `PortfolioItem`, `PortfolioItemSkill`, `ExperienceEntry`.
-- **Trust**: `CredentialClaim`, `VerificationReview`, `BadgeDefinition`, `BadgeAward`.
+- **Trust**: `CredentialClaim`, `VerificationReview`, `ClaimAppeal`, `BadgeDefinition`,
+  `BadgeAward`.
 - **Relationship graph**: `Relationship`, `RelationshipRequest`,
   `RelationshipParticipantVisibility`, `RelationshipEvidence`, `RelationshipDispute`,
-  `Endorsement`, `ProfessionalFeedback`.
+  `Endorsement`, `ProfessionalFeedback`, `Reference`, `ReferenceDispute`.
 - **Social**: `Post`, `Comment`, `Reaction`, `Follow`.
 - **Opportunity layer**: `HelpRequest`, `HelpResponse`, `Opportunity`, `Application`,
   `ServiceOffering`, `Inquiry`.
@@ -85,6 +86,24 @@ These are non-negotiable per the product spec, and are what
    `PersonProfile`/`Business` only have `city`/`region`/`country` strings plus
    deliberately coarse `approxLat`/`approxLng` floats — there is no exact-address field
    anywhere in the schema, so there's nothing to accidentally leak.
+10. **A `Reference` requires a *confirmed* relationship, not merely a declared one.**
+    (Year 2, Track 2 — identity & evidence.) Unlike `Endorsement`/`ProfessionalFeedback`,
+    which accept a `SELF_DECLARED` relationship and just mark the result `UNVERIFIED`,
+    `createReference()` in `reference-service.ts` *refuses to create the row at all*
+    unless the backing relationship is `MUTUALLY_CONFIRMED` or `EVIDENCE_REVIEWED` —
+    see `src/lib/services/__tests__/reference-service.test.ts`.
+11. **A `Reference`'s visibility is controlled only by its subject.**
+    `setReferenceVisibility()` checks `subjectUserId === callerId`; the author has no
+    visibility control over a reference they wrote, mirroring (but collapsing to one
+    field, since only the subject's profile ever shows it) the per-participant pattern
+    `RelationshipParticipantVisibility` uses for relationships.
+12. **Resolving a dispute/appeal never implicitly changes the thing it's about.**
+    `resolveDispute()` (relationships), `resolveReferenceDispute()`, and
+    `resolveClaimAppeal()` all only update their own dispute/appeal row. Actually
+    revoking a `Reference` (`revokeReference()`) or reversing a `CredentialClaim`
+    decision (`decideClaim()`) is a separate, explicitly audited action — so a status
+    change always has its own direct `AuditEvent`/`VerificationReview`, never one
+    implied only by a dispute being "upheld."
 
 ## Media and uploads
 

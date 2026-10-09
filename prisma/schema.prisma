@@ -67,14 +67,31 @@ model User {
   badgeAwards         BadgeAward[]         @relation("BadgeRecipient")
   badgesIssued        BadgeAward[]         @relation("BadgeIssuer")
 
-  relationshipsAsA             Relationship[]                      @relation("RelationshipPartyA")
-  relationshipsAsB             Relationship[]                      @relation("RelationshipPartyB")
-  relationshipsDeclared        Relationship[]                      @relation("RelationshipDeclaredBy")
-  relationshipRequestsSent     RelationshipRequest[]               @relation("RelReqFrom")
-  relationshipRequestsReceived RelationshipRequest[]               @relation("RelReqTo")
-  relationshipVisibilities     RelationshipParticipantVisibility[]
-  relationshipEvidenceAdded    RelationshipEvidence[]
-  relationshipDisputesRaised   RelationshipDispute[]
+  relationshipsAsA              Relationship[]                      @relation("RelationshipPartyA")
+  relationshipsAsB              Relationship[]                      @relation("RelationshipPartyB")
+  relationshipsDeclared         Relationship[]                      @relation("RelationshipDeclaredBy")
+  relationshipRequestsSent      RelationshipRequest[]               @relation("RelReqFrom")
+  relationshipRequestsReceived  RelationshipRequest[]               @relation("RelReqTo")
+  relationshipVisibilities      RelationshipParticipantVisibility[]
+  relationshipEvidenceAdded     RelationshipEvidence[]
+  relationshipDisputesRaised    RelationshipDispute[]
+  relationshipProjectLinksAdded RelationshipProjectLink[]           @relation("ProjectLinkAddedBy")
+  relationshipNetworkLinksAdded RelationshipNetworkLink[]           @relation("NetworkLinkAddedBy")
+
+  businessRelationshipsAsAUser            BusinessRelationship[]                      @relation("BizRelPartyAUser")
+  businessRelationshipsAsBUser            BusinessRelationship[]                      @relation("BizRelPartyBUser")
+  businessRelationshipsDeclared           BusinessRelationship[]                      @relation("BizRelDeclaredBy")
+  businessRelationshipVisibilitiesUpdated BusinessRelationshipParticipantVisibility[] @relation("BizRelVisibilityUpdatedBy")
+  businessRelationshipEvidenceAdded       BusinessRelationshipEvidence[]              @relation("BizRelEvidenceAddedBy")
+  businessRelationshipDisputesRaised      BusinessRelationshipDispute[]               @relation("BizRelDisputeRaisedBy")
+
+  mentoringProgramsAsMentor MentoringProgram[] @relation("MentoringAsMentor")
+  mentoringProgramsAsMentee MentoringProgram[] @relation("MentoringAsMentee")
+  mentoringProgramsProposed MentoringProgram[] @relation("MentoringProposedBy")
+
+  privateNetworksCreated    PrivateNetwork[]           @relation("PrivateNetworkCreatedBy")
+  privateNetworkMemberships PrivateNetworkMembership[] @relation("PrivateNetworkMember")
+  privateNetworkInvitesSent PrivateNetworkMembership[] @relation("PrivateNetworkInvitedBy")
 
   endorsementsGiven       Endorsement[]          @relation("EndorsementAuthor")
   endorsementsReceived    Endorsement[]          @relation("EndorsementSubject")
@@ -227,6 +244,9 @@ model Business {
   serviceOfferings    ServiceOffering[]
   opportunitiesPosted Opportunity[]
 
+  businessRelationshipsAsA BusinessRelationship[] @relation("BizRelPartyABusiness")
+  businessRelationshipsAsB BusinessRelationship[] @relation("BizRelPartyBBusiness")
+
   @@index([city, region, country])
 }
 
@@ -277,14 +297,15 @@ model Skill {
   suggestedById String?
   createdAt     DateTime           @default(now())
 
-  suggestedBy      User?                @relation("SkillSuggestedBy", fields: [suggestedById], references: [id])
-  aliases          SkillAlias[]
-  personSkills     PersonSkill[]
-  portfolioItems   PortfolioItemSkill[]
-  helpRequests     HelpRequest[]
-  opportunities    Opportunity[]
-  serviceOfferings ServiceOffering[]
-  endorsements     Endorsement[]
+  suggestedBy       User?                @relation("SkillSuggestedBy", fields: [suggestedById], references: [id])
+  aliases           SkillAlias[]
+  personSkills      PersonSkill[]
+  portfolioItems    PortfolioItemSkill[]
+  helpRequests      HelpRequest[]
+  opportunities     Opportunity[]
+  serviceOfferings  ServiceOffering[]
+  endorsements      Endorsement[]
+  mentoringPrograms MentoringProgram[]
 
   @@index([categoryGroup])
 }
@@ -350,10 +371,12 @@ model PortfolioItem {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  personProfile        PersonProfile?         @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
-  business             Business?              @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  skills               PortfolioItemSkill[]
-  relationshipEvidence RelationshipEvidence[]
+  personProfile                PersonProfile?                 @relation(fields: [personProfileId], references: [id], onDelete: Cascade)
+  business                     Business?                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  skills                       PortfolioItemSkill[]
+  relationshipEvidence         RelationshipEvidence[]
+  projectLinks                 RelationshipProjectLink[]
+  businessRelationshipEvidence BusinessRelationshipEvidence[]
 
   @@index([personProfileId])
   @@index([businessId])
@@ -604,12 +627,15 @@ model Relationship {
   partyB     User @relation("RelationshipPartyB", fields: [partyBUserId], references: [id], onDelete: Cascade)
   declaredBy User @relation("RelationshipDeclaredBy", fields: [declaredByUserId], references: [id])
 
-  visibilities RelationshipParticipantVisibility[]
-  evidence     RelationshipEvidence[]
-  disputes     RelationshipDispute[]
-  endorsements Endorsement[]
-  feedback     ProfessionalFeedback[]
-  references   Reference[]
+  visibilities      RelationshipParticipantVisibility[]
+  evidence          RelationshipEvidence[]
+  disputes          RelationshipDispute[]
+  endorsements      Endorsement[]
+  feedback          ProfessionalFeedback[]
+  references        Reference[]
+  projectLinks      RelationshipProjectLink[]
+  networkLinks      RelationshipNetworkLink[]
+  mentoringPrograms MentoringProgram[]
 
   @@index([partyAUserId, type])
   @@index([partyBUserId, type])
@@ -805,6 +831,266 @@ model ReferenceDispute {
   raisedBy  User      @relation("ReferenceDisputeRaisedBy", fields: [raisedByUserId], references: [id])
 
   @@index([referenceId])
+}
+
+// ============================================================================
+// Relationship graph extensions (Track 3 — relationships & collaboration graph):
+// project/team-history anchoring, business-to-person & business-to-business
+// relationships, structured mentoring programs, optional private networks.
+//
+// These extend, not replace, the person-to-person Relationship model above — see
+// docs/roadmap/03-relationships-and-collaboration.md and the "Documented deviations"
+// entry in docs/decisions.md for what's deliberately conservative here (e.g. no new
+// consent gate beyond FAMILY; private-network membership defaults to not publicly
+// visible) pending an explicit product-policy decision.
+// ============================================================================
+
+// --- Project / team-history anchoring ---------------------------------------
+//
+// Ties an existing person-to-person Relationship to a specific PortfolioItem
+// ("worked-with" -> "worked with on *this*"). A relationship can be anchored to
+// multiple projects over time; a project can have many anchors, which is what makes
+// "who worked together on this project" queryable (see team-history-service.ts).
+
+model RelationshipProjectLink {
+  id              String   @id @default(cuid())
+  relationshipId  String
+  portfolioItemId String
+  note            String?  @db.Text // e.g. "led the finishing work on this piece"
+  addedByUserId   String
+  createdAt       DateTime @default(now())
+
+  relationship  Relationship  @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  portfolioItem PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  addedBy       User          @relation("ProjectLinkAddedBy", fields: [addedByUserId], references: [id])
+
+  @@unique([relationshipId, portfolioItemId])
+  @@index([portfolioItemId])
+}
+
+// --- Business-to-person & business-to-business relationships ----------------
+//
+// Deliberately a separate table from Relationship rather than widening that table's
+// party columns: it reuses the same RelationshipState/ConfirmationStatus/Visibility/
+// DisputeStatus enums and the same self-declared -> mutually-confirmed,
+// per-side-visibility, disputable shape, without risking the person-to-person
+// Relationship table's existing invariants/tests. Exactly one of
+// {partyAUserId, partyABusinessId} (matching partyAType) must be set per side —
+// the DB doesn't enforce that (same convention as PersonSkill.isPrimary); see
+// business-relationship-service.ts.
+enum BusinessRelationshipPartyKind {
+  PERSON
+  BUSINESS
+}
+
+enum BusinessRelationshipType {
+  ENGAGEMENT // a business formally engages a person (contractor, staff-for-hire, etc.)
+  ENDORSEMENT // a business endorses a person's work
+  CLIENT_PROVIDER // either side may be the client or the provider
+  COLLABORATOR // joint work, business-to-business or business-to-person
+  PARTNERSHIP // formal business-to-business partnership
+}
+
+enum PartySide {
+  A
+  B
+}
+
+model BusinessRelationship {
+  id                 String                        @id @default(cuid())
+  type               BusinessRelationshipType
+  partyAType         BusinessRelationshipPartyKind
+  partyAUserId       String?
+  partyABusinessId   String?
+  partyARole         String
+  partyBType         BusinessRelationshipPartyKind
+  partyBUserId       String?
+  partyBBusinessId   String?
+  partyBRole         String
+  state              RelationshipState             @default(PROPOSED)
+  confirmationStatus ConfirmationStatus            @default(SELF_DECLARED)
+  // Always a user: whoever declared this acted on behalf of their side (themselves, or
+  // as an owner/confirmed admin of the business on that side).
+  declaredByUserId   String
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+
+  partyAUser     User?     @relation("BizRelPartyAUser", fields: [partyAUserId], references: [id])
+  partyABusiness Business? @relation("BizRelPartyABusiness", fields: [partyABusinessId], references: [id])
+  partyBUser     User?     @relation("BizRelPartyBUser", fields: [partyBUserId], references: [id])
+  partyBBusiness Business? @relation("BizRelPartyBBusiness", fields: [partyBBusinessId], references: [id])
+  declaredBy     User      @relation("BizRelDeclaredBy", fields: [declaredByUserId], references: [id])
+
+  visibilities BusinessRelationshipParticipantVisibility[]
+  evidence     BusinessRelationshipEvidence[]
+  disputes     BusinessRelationshipDispute[]
+
+  @@index([partyAUserId])
+  @@index([partyABusinessId])
+  @@index([partyBUserId])
+  @@index([partyBBusinessId])
+}
+
+// One row per side (A/B), not per user — the "participant" on a business side is
+// whoever is currently authorized to act for that business, not a fixed individual.
+model BusinessRelationshipParticipantVisibility {
+  businessRelationshipId String
+  side                   PartySide
+  visibility             Visibility @default(PUBLIC)
+  hidden                 Boolean    @default(false)
+  updatedByUserId        String
+  updatedAt              DateTime   @updatedAt
+
+  businessRelationship BusinessRelationship @relation(fields: [businessRelationshipId], references: [id], onDelete: Cascade)
+  updatedBy            User                 @relation("BizRelVisibilityUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@id([businessRelationshipId, side])
+}
+
+model BusinessRelationshipEvidence {
+  id                     String   @id @default(cuid())
+  businessRelationshipId String
+  description            String   @db.Text
+  portfolioItemId        String?
+  url                    String?
+  addedByUserId          String
+  createdAt              DateTime @default(now())
+
+  businessRelationship BusinessRelationship @relation(fields: [businessRelationshipId], references: [id], onDelete: Cascade)
+  portfolioItem        PortfolioItem?       @relation(fields: [portfolioItemId], references: [id])
+  addedBy              User                 @relation("BizRelEvidenceAddedBy", fields: [addedByUserId], references: [id])
+
+  @@index([businessRelationshipId])
+}
+
+model BusinessRelationshipDispute {
+  id                     String        @id @default(cuid())
+  businessRelationshipId String
+  raisedByUserId         String
+  reason                 String        @db.Text
+  status                 DisputeStatus @default(OPEN)
+  resolutionNotes        String?       @db.Text
+  createdAt              DateTime      @default(now())
+  resolvedAt             DateTime?
+
+  businessRelationship BusinessRelationship @relation(fields: [businessRelationshipId], references: [id], onDelete: Cascade)
+  raisedBy             User                 @relation("BizRelDisputeRaisedBy", fields: [raisedByUserId], references: [id])
+
+  @@index([businessRelationshipId])
+}
+
+// --- Structured mentoring programs -------------------------------------------
+//
+// Distinct from both the generic MENTOR_MENTEE Relationship type and the one-sided
+// LEARNING_FROM declaration: a program is a mutual proposal with its own lifecycle
+// (PROPOSED -> ACTIVE -> COMPLETED/DECLINED/CANCELLED). It deliberately does NOT
+// auto-create or auto-confirm a Relationship row on acceptance — that would be a
+// second, looser path to "mutually confirmed" and would blur the one load-bearing
+// invariant in the whole app (see docs/data-model.md invariant #1). `relationshipId`
+// is an optional cross-link for when the two people separately also hold a confirmed
+// MENTOR_MENTEE Relationship they want this program associated with.
+enum MentoringProgramStatus {
+  PROPOSED
+  ACTIVE
+  DECLINED
+  COMPLETED
+  CANCELLED
+}
+
+model MentoringProgram {
+  id               String                 @id @default(cuid())
+  mentorUserId     String
+  menteeUserId     String
+  proposedByUserId String
+  title            String
+  description      String?                @db.Text
+  focusSkillId     String?
+  goals            Json? // optional free-form milestone/goal list, shape owned by the caller
+  status           MentoringProgramStatus @default(PROPOSED)
+  relationshipId   String?
+  startDate        DateTime?
+  endDate          DateTime?
+  respondedAt      DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  mentor       User          @relation("MentoringAsMentor", fields: [mentorUserId], references: [id], onDelete: Cascade)
+  mentee       User          @relation("MentoringAsMentee", fields: [menteeUserId], references: [id], onDelete: Cascade)
+  proposedBy   User          @relation("MentoringProposedBy", fields: [proposedByUserId], references: [id])
+  focusSkill   Skill?        @relation(fields: [focusSkillId], references: [id])
+  relationship Relationship? @relation(fields: [relationshipId], references: [id])
+
+  @@index([mentorUserId, status])
+  @@index([menteeUserId, status])
+}
+
+// --- Optional private networks -----------------------------------------------
+//
+// A closed group whose members can see relationships tagged into it even when that
+// visibility is narrower than what the relationship's own per-participant visibility
+// would otherwise allow a stranger to see. This layers ON TOP of (never replaces)
+// RelationshipParticipantVisibility: a relationship hidden by either participant stays
+// hidden from everyone, network membership or not — see canViewWithNetworkScope() in
+// private-network-service.ts. `membershipVisible` (is the member list itself visible
+// to non-members?) defaults to false/members-only as the conservative, reversible
+// choice — see docs/decisions.md, this is a flagged policy question, not a settled one.
+enum PrivateNetworkMembershipRole {
+  ADMIN
+  MEMBER
+}
+
+enum PrivateNetworkMembershipStatus {
+  INVITED
+  ACTIVE
+  REMOVED
+  DECLINED
+}
+
+model PrivateNetwork {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?  @db.Text
+  createdByUserId   String
+  membershipVisible Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdBy         User                       @relation("PrivateNetworkCreatedBy", fields: [createdByUserId], references: [id])
+  memberships       PrivateNetworkMembership[]
+  relationshipLinks RelationshipNetworkLink[]
+
+  @@index([createdByUserId])
+}
+
+model PrivateNetworkMembership {
+  id              String                         @id @default(cuid())
+  networkId       String
+  userId          String
+  role            PrivateNetworkMembershipRole   @default(MEMBER)
+  status          PrivateNetworkMembershipStatus @default(INVITED)
+  invitedByUserId String
+  joinedAt        DateTime?
+  createdAt       DateTime                       @default(now())
+
+  network   PrivateNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  user      User           @relation("PrivateNetworkMember", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User           @relation("PrivateNetworkInvitedBy", fields: [invitedByUserId], references: [id])
+
+  @@unique([networkId, userId])
+  @@index([userId, status])
+}
+
+model RelationshipNetworkLink {
+  relationshipId String
+  networkId      String
+  addedByUserId  String
+  createdAt      DateTime @default(now())
+
+  relationship Relationship   @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  network      PrivateNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  addedBy      User           @relation("NetworkLinkAddedBy", fields: [addedByUserId], references: [id])
+
+  @@id([relationshipId, networkId])
 }
 
 // ============================================================================

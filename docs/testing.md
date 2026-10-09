@@ -53,14 +53,31 @@ evidence, year 2 roadmap) exercises:
 4. Resolving an appeal records the outcome but never mutates `CredentialClaim.status`
    by itself — reversing a decision still requires the explicit `decideClaim()` path.
 
+Four more suites cover the Track 3 relationship-graph extensions (see
+[decisions.md](./decisions.md#track-3--relationships--collaboration-graph-year-2-roadmap)),
+each proving the same shape of invariant against the new constructs:
+
+- `team-history-service.test.ts` — anchoring a relationship to a project requires being
+  a party AND the project belonging to one of the parties; visible team history narrows
+  (never widens) per each party's own `RelationshipParticipantVisibility`.
+- `business-relationship-service.test.ts` — "acting for a side" means being that
+  person, or a business's owner/confirmed admin; the declaring party can never confirm
+  their own declaration; visibility only ever updates the acting side's own row.
+- `mentoring-service.test.ts` — only the prospective mentor/mentee can propose; the
+  proposer can't accept/decline their own proposal; accepting a program never silently
+  creates a `Relationship` row.
+- `private-network-service.test.ts` — linking a relationship into a network requires
+  being both a party to it and an active network member; network scoping only narrows
+  visibility, never overrides a participant's own hide.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Three test files exist (relationship confirmation, plus Track 2's reference and
-  claim-appeal invariants above). The plan called for "at minimum, one test per
-  feature area" — Identity, Discovery, Social, and Admin still don't have their own
-  general test suites; Track 2 only covers the specific invariants it added.
+- Seven test files exist, mostly in the relationships/collaboration area (the original
+  V1 suite, Track 2's reference and claim-appeal suites, and the four Track 3 suites
+  above). The plan called for "at minimum, one test per feature area" — Identity,
+  Discovery, Social, and Admin still don't have their own general test suites.
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

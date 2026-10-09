@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decideVerificationTier, openReviewCase } from "@/lib/services/review-case-service";
 import type { ClaimType } from "@prisma/client";
 
 // Admin-side review (decideClaim/listClaims/getClaim) lives in
@@ -15,7 +16,7 @@ export async function submitClaim(input: {
   evidenceUrls?: string[];
   relatedExperienceId?: string;
 }) {
-  return prisma.credentialClaim.create({
+  const claim = await prisma.credentialClaim.create({
     data: {
       subjectUserId: input.subjectUserId,
       claimType: input.claimType,
@@ -25,6 +26,21 @@ export async function submitClaim(input: {
       relatedExperienceId: input.relatedExperienceId,
     },
   });
+
+  // Track 9 (trust/safety/moderation at scale): route into a tiered review queue
+  // (quick-path vs. deep-review) instead of one undifferentiated FIFO queue — see
+  // `review-case-service.ts#decideVerificationTier` for the placeholder heuristic
+  // and this track's report for why real tiering criteria is a policy call.
+  await openReviewCase({
+    caseType: "VERIFICATION",
+    entityType: "CREDENTIAL_CLAIM",
+    entityId: claim.id,
+    subjectUserId: input.subjectUserId,
+    tier: decideVerificationTier({ claimType: input.claimType, evidenceUrlCount: (input.evidenceUrls ?? []).length }),
+    actorUserId: input.subjectUserId,
+  });
+
+  return claim;
 }
 
 export async function listMyClaims(subjectUserId: string) {

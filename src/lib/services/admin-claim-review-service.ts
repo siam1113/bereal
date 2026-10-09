@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { resolveReviewCaseFor } from "@/lib/services/review-case-service";
 import type { ReviewDecision } from "@prisma/client";
 
 /**
@@ -72,6 +73,21 @@ export async function decideClaim(
     targetId: claimId,
     metadata: { notes },
   });
+
+  // Track 9: close the tiered-review workflow envelope on a terminal decision only
+  // — REQUEST_MORE_INFO leaves the claim IN_REVIEW, so the case stays open. REVOKED
+  // is recorded distinctly: a previously APPROVED claim later revoked is the
+  // closest real signal this worktree has to "false verification," though the real
+  // metric needs Track 2's ClaimAppeal — see safety-metrics-service.ts.
+  if (decision !== "REQUEST_MORE_INFO") {
+    await resolveReviewCaseFor({
+      caseType: "VERIFICATION",
+      entityType: "CREDENTIAL_CLAIM",
+      entityId: claimId,
+      outcome: decision,
+      actorUserId: reviewerUserId,
+    });
+  }
 
   return claim;
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { resolveReviewCaseFor } from "@/lib/services/review-case-service";
 import type { DisputeStatus } from "@prisma/client";
 
 export async function listDisputes(statusFilter?: DisputeStatus[]) {
@@ -35,6 +36,16 @@ export async function resolveDispute(
     targetType: "RelationshipDispute",
     targetId: disputeId,
     metadata: { relationshipId: dispute.relationshipId, notes },
+  });
+
+  // Track 9: close the generic workflow envelope and record the dispute-resolution-
+  // time metric. No-op if this dispute predates the ReviewCase mechanism.
+  await resolveReviewCaseFor({
+    caseType: "DISPUTE",
+    entityType: "RELATIONSHIP_DISPUTE",
+    entityId: disputeId,
+    outcome: resolution,
+    actorUserId: adminUserId,
   });
 
   return dispute;

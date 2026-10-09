@@ -91,16 +91,34 @@ name/bio/skill-name in the file carries that same suffix, so a query containing 
 trigram-match unrelated fixtures purely on the shared substring, independent of the
 thing you're actually trying to test.
 
+`src/lib/services/__tests__/trust-safety.test.ts` covers Track 9's queue/workflow
+primitives (see
+[docs/roadmap/09-trust-safety-and-moderation.md](./roadmap/09-trust-safety-and-moderation.md)):
+opening/closing a `ReviewCase` on a relationship dispute and on a tiered verification
+claim, `openReviewCase`'s per-entity idempotency, `ModerationFlag` triage (escalate vs.
+dismiss), and the endorsement-ring detector (flags a reciprocal evidence-less pair,
+is idempotent across scans, and does not flag a pair with independent evidence). Its
+`afterAll` is more involved than the relationship-service test's: `ReviewCase` /
+`ModerationFlag` / `SafetyMetricEvent` point at the substantive record they're about
+via a free-text `(entityType, entityId)` pair rather than a Prisma relation, so
+`User` deletion doesn't cascade-clean them — every row gets its id pushed into a
+tracking array for explicit pre-deletion. It also deletes `RelationshipDispute`,
+`RelationshipEvidence`, and `VerificationReview` rows by actor id before deleting
+users — those models' `relationship`/`claim` FK cascades, but their
+`raisedBy`/`addedBy`/`reviewer` FKs to `User` do not (pre-existing gap, not
+introduced by this track; see `docs/decisions.md`).
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Nine test files exist (the original V1 relationships suite, Track 2's reference and
-  claim-appeal suites, the four Track 3 suites, Track 6's business-service suite, and
-  Track 1's search-service suite). The plan called for "at minimum, one test per feature
-  area" — Social and Admin still don't have their own general test suites (Identity has
-  partial coverage via Track 6's business-tooling tests; Discovery is now covered via
-  Track 1's search-service tests).
+- Ten test files exist (the original V1 relationships suite, Track 2's reference and
+  claim-appeal suites, the four Track 3 suites, Track 6's business-service suite,
+  Track 1's search-service suite, and Track 9's trust-safety suite). The plan called
+  for "at minimum, one test per feature area" — Social still doesn't have its own
+  general test suite (Identity has partial coverage via Track 6's business-tooling
+  tests; Discovery via Track 1's search-service tests; Admin via Track 9's
+  trust-safety tests).
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

@@ -241,6 +241,42 @@ raised for a human decision, not resolved by any code in these tracks:
   policy decision. `viewerUserId` is retained on each `BusinessAnalyticsEvent` only
   for a possible future dedupe/fraud pass; no function in `business-service.ts`
   projects it back out per-row.
+- **Three pre-existing `User` FKs don't cascade on delete:** `RelationshipDispute.raisedBy`,
+  `RelationshipEvidence.addedBy`, `VerificationReview.reviewer` (their `relationship`/
+  `claim` FKs do cascade; only the actor-pointing FK doesn't). Found while writing
+  Track 9's test teardown — hard-deleting a user who raised a dispute, added
+  evidence, or reviewed a claim fails with a foreign-key violation unless that row is
+  deleted first. Account deletion is already a soft delete (see above), so this
+  doesn't bite in the app today, but it will bite anything that ever hard-deletes a
+  `User` row (admin tooling, GDPR erasure, test teardowns). Not fixed here — it
+  predates this track and changing cascade behavior on shared models is outside this
+  track's scope — but flagged so it isn't rediscovered the hard way.
+
+## Track 9 — Trust, safety & moderation at scale (year-2+ roadmap)
+
+Builds generic review-case/flagging primitives (`ReviewCase`, `ModerationFlag`,
+`SafetyMetricEvent`) against V1's existing moderation/claim/dispute models only — see
+[roadmap/09-trust-safety-and-moderation.md](./roadmap/09-trust-safety-and-moderation.md).
+Every pointer from these models to "the thing being reviewed" is a free-text
+`(entityType, entityId)` pair (same convention `AuditEvent` already uses), never a
+Prisma relation to a specific model — this is deliberate so Track 2's
+`ReferenceDispute`/`ClaimAppeal` and Track 3's `BusinessRelationshipDispute` and
+friends can plug in as new `entityType` values with no migration required. Integration
+contract for whoever wires those tracks in: open one `ReviewCase` row per item needing
+review, and call `recordSafetyMetricEvent()` alongside it.
+
+Flagged policy questions from the track doc, not decided here:
+
+- **Abuse-pattern thresholds** — only one concrete detector exists (reciprocal
+  endorsements with no independent evidence); larger-cycle ring detection and the
+  actual thresholds for flagging are not implemented. A product/legal call, not a
+  default to invent.
+- **Dispute-adjudication/appeal ownership at scale** — today everything routes through
+  a single-assignee `ReviewCase` in the existing admin queue; no dedicated
+  adjudication/appeals governance model exists beyond that.
+- **What counts as a "privacy incident"** for the safety-metrics instrumentation named
+  in the roadmap — not defined; `SafetyMetricEvent` can record one once a definition
+  exists, but nothing currently classifies one.
 
 ## Open questions before a public launch
 
@@ -282,6 +318,38 @@ build, and shouldn't be assumed settled just because the app works:
   to aggregate-only (see the deviation above) as the conservative, reversible
   starting point — not a final answer on the underlying privacy/re-identification
   question.
+
+## Policy questions from Track 9 (trust, safety & moderation at scale)
+
+Flagged per `docs/roadmap/09-trust-safety-and-moderation.md`'s own "policy questions
+to flag, not decide silently" — the mechanism exists so these can be set/changed
+without a schema or code migration, but this track deliberately did not invent the
+values themselves:
+
+- **Abuse-pattern thresholds.** `abuse-detection-service.ts`'s only detector
+  (`detectEndorsementRings`) flags a reciprocal endorsement pair with zero
+  independent evidence — the most literal possible reading of the roadmap's
+  "clusters of mutual confirmations with no independent evidence" example. It does
+  not attempt: larger cycles (A→B→C→A), velocity-based patterns (endorsing many
+  people in a short window), or any numeric threshold tuning. `ModerationFlag.severity`
+  defaults to `MEDIUM` for every flag this track raises — there's no severity
+  rubric. All of this is a product/legal call, not a default to invent; the
+  `patternType`/`entityType` fields on `ModerationFlag` are free text specifically so
+  new detectors and thresholds can be added without a migration once that call is
+  made.
+- **Dispute adjudication ownership and appeal path at scale.** `ReviewCase` gives
+  disputes/claims/flags SLA, tier, and single-assignee tracking, but nothing in this
+  build defines: who adjudicates when reviewers disagree, what an appeal beyond the
+  current admin-dispute-queue looks like, or how caseload gets distributed across
+  more than one admin as volume grows (`assignReviewCase` supports exactly one
+  assignee; there's no team/role routing). This directly affects the "false
+  verification rate" metric too — see `safety-metrics-service.ts`, which returns
+  `null` for that metric today because the real signal (an approved claim later
+  overturned on appeal) depends on Track 2's `ClaimAppeal`, which hasn't merged into
+  this schema yet, *and* on deciding who has standing to grant such an appeal.
+- **What counts as a "privacy incident."** `SafetyMetricEvent` can log a
+  `PRIVACY_INCIDENT` metric type, but nothing in this build decides what qualifies
+  or writes one — see `safety-metrics-service.ts#getSafetyMetricsSummary`.
 
 ## V1 launch constraints (from the original spec, still true)
 

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { openReviewCase } from "@/lib/services/review-case-service";
+import { recordSafetyMetricEvent } from "@/lib/services/safety-metrics-service";
 import type {
   ConsentStatus,
   Prisma,
@@ -232,6 +234,26 @@ export async function raiseDispute(relationshipId: string, raisedByUserId: strin
     targetId: relationshipId,
     metadata: { reason },
   });
+
+  // Track 9 (trust/safety/moderation): open the generic workflow envelope (SLA,
+  // tier, assignment) for this dispute. The dispute's own `status` stays the
+  // source of truth for the actual outcome — see prisma/schema.prisma's
+  // `ReviewCase` doc comment for the full contract.
+  const counterpartUserId = rel.partyAUserId === raisedByUserId ? rel.partyBUserId : rel.partyAUserId;
+  await openReviewCase({
+    caseType: "DISPUTE",
+    entityType: "RELATIONSHIP_DISPUTE",
+    entityId: dispute.id,
+    subjectUserId: counterpartUserId,
+    actorUserId: raisedByUserId,
+  });
+  await recordSafetyMetricEvent({
+    metricType: "DISPUTE_OPENED",
+    entityType: "RELATIONSHIP_DISPUTE",
+    entityId: dispute.id,
+    actorUserId: raisedByUserId,
+  });
+
   return dispute;
 }
 

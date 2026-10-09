@@ -7,6 +7,8 @@ const navLinks = [
   { href: "/admin/claims", label: "Claims" },
   { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/flags", label: "Abuse flags" },
+  { href: "/admin/review-cases", label: "Review queues" },
   { href: "/admin/badges", label: "Badges" },
   { href: "/admin/stage-rules", label: "Stage rules" },
 ];

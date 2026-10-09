@@ -104,6 +104,12 @@ model User {
   blocksReceived  Block[]        @relation("Blocked")
   auditEvents     AuditEvent[]   @relation("AuditActor")
 
+  moderationFlagsSubject  ModerationFlag[]    @relation("FlagSubject")
+  moderationFlagsReviewed ModerationFlag[]    @relation("FlagReviewer")
+  reviewCasesSubject      ReviewCase[]        @relation("ReviewCaseSubject")
+  reviewCasesAssigned     ReviewCase[]        @relation("ReviewCaseAssignee")
+  safetyMetricEvents      SafetyMetricEvent[] @relation("SafetyMetricActor")
+
   @@index([email])
 }
 
@@ -1049,4 +1055,185 @@ model AuditEvent {
 
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// Trust & safety at scale (Track 9 — see docs/roadmap/09-trust-safety-and-moderation.md)
+//
+// These three models are deliberately generic so every other track's own
+// dispute/claim/evidence models can plug into these queues without this schema
+// needing to change when they merge:
+//
+//   - Track 2 (Identity & evidence) built `Reference`/`ReferenceDispute`/
+//     `ClaimAppeal` on its own branch.
+//   - Track 3 (Relationships) built `BusinessRelationship`/`MentoringProgram`/
+//     `PrivateNetwork`, each with its own Dispute/Evidence sub-models, on its own
+//     branch.
+//   - Track 4 (Opportunity network) and Track 8 (AI assistance's fraud-flagging)
+//     haven't landed yet but are named as future producers into this queue.
+//
+// The mechanism: every pointer from these models into "the substantive thing being
+// reviewed/flagged" is a free-text (entityType, entityId) pair — exactly the
+// pattern `AuditEvent` already uses above — never a Prisma relation to a specific
+// model. That means a detector or admin action can reference a `Relationship`, a
+// `CredentialClaim`, or (once merged) a Track 2 `ReferenceDispute` or a Track 3
+// `BusinessRelationshipDispute` without this file ever needing a migration for it.
+// Only pointers at `User` (a model guaranteed to exist here) are real relations.
+//
+// Integration note for whoever wires the other 8 tracks together: once Track 2's
+// `ReferenceDispute`/`ClaimAppeal` and Track 3's dispute sub-models land, they do
+// NOT need to be folded into `RelationshipDispute` or `CredentialClaim` — they can
+// keep their own substantive status field (approved/rejected, upheld/removed, etc.)
+// exactly like `RelationshipDispute.status` and `CredentialClaim.status` do today.
+// Each just needs one `ReviewCase` row opened against it (`entityType` = e.g.
+// `"REFERENCE_DISPUTE"`, `entityId` = that row's id) to get SLA/tier/assignment
+// tracking for free, and its create/resolve service calls should call
+// `recordSafetyMetricEvent()` (src/lib/services/safety-metrics-service.ts) the same
+// way `relationship-service.ts#raiseDispute` and
+// `admin-dispute-service.ts#resolveDispute` do, so it shows up in the same
+// dispute-resolution-time/complaint-rate metrics instead of a parallel one.
+// ============================================================================
+
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ModerationFlagStatus {
+  OPEN
+  UNDER_REVIEW
+  ESCALATED
+  DISMISSED
+}
+
+// A system/detector-raised signal of a possible abuse pattern (endorsement rings,
+// rapid mutual-confirmation churn, etc.) — distinct from `Report`, which is a human
+// filing a complaint. Flags are advisory only: nothing in this track auto-actions
+// against a user. A human triages each flag via `moderation-flag-service.ts`,
+// either dismissing it or escalating it into a `ReviewCase` for formal review.
+//
+// Known `entityType` values as of this track's build: `"USER"`, `"RELATIONSHIP"`,
+// `"ENDORSEMENT"`, `"ENDORSEMENT_CLUSTER"` (a synthetic id the detector mints for a
+// group of relationships/endorsements it flagged together — not a real row id).
+// `patternType` is likewise free text (e.g. `"RECIPROCAL_ENDORSEMENT_NO_EVIDENCE"`)
+// rather than a closed enum, because the actual taxonomy of abuse patterns worth
+// flagging is a product/policy call this track does not make — see this track's
+// final report for what's flagged explicitly.
+model ModerationFlag {
+  id               String               @id @default(cuid())
+  entityType       String
+  entityId         String
+  subjectUserId    String?
+  patternType      String
+  severity         FlagSeverity         @default(MEDIUM)
+  detectorId       String // e.g. "endorsement-ring-detector@v1" — which detector/version raised it
+  evidence         Json // the signal data backing the flag: involved ids, counts, scores
+  status           ModerationFlagStatus @default(OPEN)
+  createdAt        DateTime             @default(now())
+  reviewedAt        DateTime?
+  reviewedByUserId String?
+
+  subject    User? @relation("FlagSubject", fields: [subjectUserId], references: [id])
+  reviewedBy User? @relation("FlagReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([subjectUserId])
+}
+
+enum ReviewCaseType {
+  VERIFICATION
+  DISPUTE
+  ABUSE_FLAG
+}
+
+enum ReviewTier {
+  QUICK_PATH
+  DEEP_REVIEW
+}
+
+enum ReviewPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ReviewCaseStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+// The generic workflow envelope — tier, SLA, assignment, and status — for any
+// reviewable or disputable record, independent of who owns that record's
+// substantive decision. `entityType`/`entityId` points at the thing actually being
+// reviewed (a `CredentialClaim`, a `RelationshipDispute`, a `ModerationFlag`, or —
+// once merged — a Track 2/3 model) using the same free-text-pointer convention as
+// `AuditEvent`. This table intentionally holds NO Prisma relation to any of those
+// models, so it never needs a migration when another track's dispute/claim model
+// lands; see the block comment above this section for the integration contract.
+//
+// The substantive outcome (approved/rejected, upheld/removed) stays owned by that
+// record's own model/service — this table only tracks how the queue is working the
+// case, denormalizing `outcome` as a short free-text summary once that record
+// resolves, purely for the metrics in `safety-metrics-service.ts`.
+//
+// Known `entityType` values as of this track's build: `"CREDENTIAL_CLAIM"`,
+// `"RELATIONSHIP_DISPUTE"`, `"MODERATION_FLAG"`. Extend freely — e.g.
+// `"REFERENCE_DISPUTE"`, `"CLAIM_APPEAL"`, `"BUSINESS_RELATIONSHIP_DISPUTE"`.
+model ReviewCase {
+  id               String           @id @default(cuid())
+  caseType         ReviewCaseType
+  entityType       String
+  entityId         String
+  subjectUserId    String?
+  tier             ReviewTier?
+  priority         ReviewPriority   @default(NORMAL)
+  status           ReviewCaseStatus @default(OPEN)
+  assignedToUserId String?
+  openedAt         DateTime         @default(now())
+  slaDueAt         DateTime?
+  firstActionAt    DateTime?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+  outcome          String?
+  notes            String?          @db.Text
+
+  subject    User? @relation("ReviewCaseSubject", fields: [subjectUserId], references: [id])
+  assignedTo User? @relation("ReviewCaseAssignee", fields: [assignedToUserId], references: [id])
+
+  @@unique([caseType, entityType, entityId])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([assignedToUserId, status])
+}
+
+// Append-only event log instrumenting the roadmap's named safety metrics —
+// complaint rate, dispute resolution time, false verification rate, privacy
+// incidents (see docs/roadmap/09-trust-safety-and-moderation.md). `metricType` is
+// free text, not a closed enum, because which metrics matter and at what
+// granularity is still an open product question — see `safety-metrics-service.ts`
+// and this track's final report for what's instrumented today (complaint rate,
+// dispute resolution time, flag volume/confirmation rate) versus what's a
+// placeholder pending another track's data (a real "false verification rate" needs
+// Track 2's `ClaimAppeal`, which hasn't merged into this schema yet).
+model SafetyMetricEvent {
+  id          String   @id @default(cuid())
+  metricType  String
+  entityType  String?
+  entityId    String?
+  actorUserId String?
+  occurredAt  DateTime @default(now())
+  durationMs  Int?
+  value       Float?
+  metadata    Json?
+
+  actor User? @relation("SafetyMetricActor", fields: [actorUserId], references: [id])
+
+  @@index([metricType, occurredAt])
+  @@index([entityType, entityId])
 }

@@ -104,6 +104,8 @@ model User {
   blocksReceived  Block[]        @relation("Blocked")
   auditEvents     AuditEvent[]   @relation("AuditActor")
 
+  aiFlagsReviewed AiModerationFlag[] @relation("AiFlagReviewer")
+
   @@index([email])
 }
 
@@ -1049,4 +1051,56 @@ model AuditEvent {
 
   @@index([targetType, targetId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// AI assistance (Track 8) — see docs/roadmap/08-ai-assistance.md
+//
+// Deliberately its own table, never written into Report/RelationshipDispute: the
+// track's core invariant is that AI output must stay visibly, structurally distinct
+// from verified/user-submitted/admin-reviewed facts, never silently blended in.
+// AiModerationFlag queues a suspicious pattern for human review only — it never
+// auto-actions anything (no auto-reject/auto-confirm) — see
+// admin-ai-flag-service.ts#resolveAiFlag(). There is deliberately no numeric
+// "confidence"/trust score on a person here, only a reason code + explanation that must
+// cite concrete stored record ids (evidenceRefs) — the same "no opaque trust score,
+// show evidence" rule as the rest of the product, applied to AI output too.
+// ============================================================================
+
+enum AiFlagTargetType {
+  CREDENTIAL_CLAIM
+  RELATIONSHIP
+  ENDORSEMENT
+  PROFESSIONAL_FEEDBACK
+}
+
+enum AiFlagStatus {
+  PENDING
+  REVIEWED_ACTIONED
+  REVIEWED_DISMISSED
+}
+
+model AiModerationFlag {
+  id                String           @id @default(cuid())
+  targetType        AiFlagTargetType
+  targetId          String
+  // Which heuristic fired, e.g. "ENDORSEMENT_RING_SUSPECTED", "RAPID_CLAIM_BURST" —
+  // see fraud-signal-service.ts for the fixed set of reason codes.
+  reasonCode        String
+  // Human-readable explanation — must only restate facts present in evidenceRefs below,
+  // never a free-floating claim about the target's trustworthiness.
+  explanation       String           @db.Text
+  // Concrete stored record ids/fields the heuristic actually looked at, so the flag is
+  // always traceable back to real evidence, never fabricated.
+  evidenceRefs      Json
+  status            AiFlagStatus     @default(PENDING)
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  reviewNotes       String?          @db.Text
+  createdAt         DateTime         @default(now())
+
+  reviewedBy User? @relation("AiFlagReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@unique([targetType, targetId, reasonCode])
+  @@index([status, targetType])
 }

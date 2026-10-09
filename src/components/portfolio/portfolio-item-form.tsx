@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { DraftSuggestionPanel, type AiDraft } from "@/components/ai/draft-suggestion-panel";
 
 export interface PortfolioItemFormValues {
   title: string;
@@ -36,6 +37,35 @@ export function PortfolioItemForm({ itemId, initial }: PortfolioItemFormProps) {
     initial?.visibility ?? "PUBLIC",
   );
   const [saving, setSaving] = useState(false);
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
+  const [drafting, setDrafting] = useState(false);
+
+  async function handleDraftWithAi() {
+    if (!title.trim()) {
+      toast.error("Add a title first — the draft is based on it.");
+      return;
+    }
+    setDrafting(true);
+    try {
+      const res = await fetch("/api/ai/portfolio-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          rawNotes: description,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Couldn't generate a draft right now.");
+        return;
+      }
+      const data = await res.json();
+      setAiDraft(data.draft);
+    } finally {
+      setDrafting(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,12 +104,27 @@ export function PortfolioItemForm({ itemId, initial }: PortfolioItemFormProps) {
         <Input id="title" required value={title} onChange={(e) => setTitle(e.target.value)} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Description</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="description">Description</Label>
+          <Button type="button" size="sm" variant="secondary" disabled={drafting} onClick={handleDraftWithAi}>
+            {drafting ? "Drafting…" : "Draft with AI"}
+          </Button>
+        </div>
         <Textarea
           id="description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+        {aiDraft ? (
+          <DraftSuggestionPanel
+            draft={aiDraft}
+            onUse={(text) => {
+              setDescription(text);
+              setAiDraft(null);
+            }}
+            onDiscard={() => setAiDraft(null)}
+          />
+        ) : null}
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="tags">Tags (comma separated)</Label>

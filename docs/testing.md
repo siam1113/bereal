@@ -32,11 +32,35 @@ Auth.js's credentials callback, then exercising `/api/relationships/[id]/confirm
 `/api/relationships/[id]/visibility` with real session cookies) during the integration
 pass — not just at the service-function level.
 
+`src/lib/services/__tests__/ai-assistance.test.ts` covers Track 8 (AI assistance, see
+[roadmap/08-ai-assistance.md](./roadmap/08-ai-assistance.md)) with
+`AI_EXTERNAL_PROVIDER_ENABLED` unset, i.e. the default/off posture:
+
+1. NL query parsing maps urgency/locality phrases and a real skill name to structured
+   search params via the local heuristic, and never fabricates a skill match for text
+   that names no real skill.
+2. Match explanations only ever cite fields actually present on the search result
+   (skill/geo match, portfolio count, availability) — nothing invented.
+3. Portfolio/bio drafting returns the local-template fallback built only from the
+   given title/tags/notes/skills.
+4. Translation honestly reports "unavailable" and preserves the original text rather
+   than fabricating a translation.
+5. Fraud-signal scanning (rapid claim bursts, endorsement rings, repeated disputed
+   self-declarations) creates `PENDING` `AiModerationFlag` rows traceable to the real
+   claim/endorsement/relationship ids, never mutates the scanned records, and never
+   double-flags the same target+reason on a repeat scan.
+6. Admin resolution of a flag (`resolveAiFlag`) is a distinct, audited action — a flag
+   stays `PENDING` until an admin acts on it.
+
+These don't exercise the external-LLM-enabled code path (that would need a live
+`ANTHROPIC_API_KEY` and defeats the point of a repeatable test suite) — only the local
+fallback every feature has regardless of the flag.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Only one test file exists. The plan called for "at minimum, one test per feature area"
+- Only two test files exist. The plan called for "at minimum, one test per feature area"
   — Identity, Discovery, Social, and Admin don't have their own test suites yet.
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)

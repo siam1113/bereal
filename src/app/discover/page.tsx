@@ -37,25 +37,50 @@ const GEO_SCOPES = [
   { value: "GLOBAL", label: "Global" },
 ];
 
+const PAGE_SIZE = 20;
+
 export default function DiscoverPage() {
   const [query, setQuery] = useState("");
   const [skillId, setSkillId] = useState<string | null>(null);
   const [geoScope, setGeoScope] = useState("none");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  async function runSearch() {
-    setLoading(true);
+  function buildParams(offset: number) {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (skillId) params.set("skillId", skillId);
     if (geoScope !== "none") params.set("geoScope", geoScope);
-    const res = await fetch(`/api/search/people?${params.toString()}`);
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
+    return params;
+  }
+
+  async function runSearch() {
+    setLoading(true);
+    const res = await fetch(`/api/search/people?${buildParams(0).toString()}`);
     if (res.ok) {
       const data = await res.json();
       setResults(data.results ?? []);
+      setHasMore(Boolean(data.hasMore));
+      setTotal(data.total ?? 0);
     }
     setLoading(false);
+  }
+
+  async function loadMore() {
+    setLoadingMore(true);
+    const res = await fetch(`/api/search/people?${buildParams(results.length).toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      setResults((prev) => [...prev, ...(data.results ?? [])]);
+      setHasMore(Boolean(data.hasMore));
+      setTotal(data.total ?? 0);
+    }
+    setLoadingMore(false);
   }
 
   useEffect(() => {
@@ -96,7 +121,13 @@ export default function DiscoverPage() {
         {loading ? "Searching..." : "Search"}
       </Button>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      {!loading && results.length > 0 ? (
+        <p className="mt-6 text-sm text-ink-muted">
+          Showing {results.length} of {total} {total === 1 ? "match" : "matches"}
+        </p>
+      ) : null}
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {results.map((r) => (
           <Link key={r.profileId} href={`/p/${r.slug}`}>
             <Card className="h-full transition-shadow hover:shadow-md">
@@ -132,6 +163,14 @@ export default function DiscoverPage() {
           <p className="text-ink-muted">No matches yet — try broadening your search.</p>
         ) : null}
       </div>
+
+      {hasMore ? (
+        <div className="mt-6 flex justify-center">
+          <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Loading..." : "Load more"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

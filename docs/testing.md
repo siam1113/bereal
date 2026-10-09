@@ -77,16 +77,30 @@ flipping live once an admin approves it via the existing claims pipeline) and th
 aggregate-only business analytics (owner-only access, self/member view exclusion,
 inquiry counts sourced from the existing `Inquiry` table).
 
+`src/lib/services/__tests__/search-service.test.ts` covers the Track 1 (search &
+discovery, `docs/roadmap/01-search-and-discovery.md`) invariants: secondary skills are
+fully searchable (not just primary), the `matchReasons` breakdown stays explainable
+instead of collapsing into a blended score, trigram similarity actually gives
+typo-tolerant matching, pagination (`limit`/`offset`/`total`/`hasMore`) is real, the two
+flagged policy decisions hold (unapproved skills never surface via text match,
+`PortfolioItem.visibility` gates the portfolio evidence signal — see
+[decisions.md](./decisions.md)), and no precise-location field ever leaks onto a result.
+One fixture note for anyone adding cases here: don't include the test file's run-scoped
+`RUN_ID` suffix inside a *query string* used in an assertion — every fixture's
+name/bio/skill-name in the file carries that same suffix, so a query containing it will
+trigram-match unrelated fixtures purely on the shared substring, independent of the
+thing you're actually trying to test.
+
 ## Known gaps
 
 Be upfront about these rather than implying more coverage than exists:
 
-- Eight test files exist, mostly in the relationships/collaboration area (the original
-  V1 suite, Track 2's reference and claim-appeal suites, the four Track 3 suites, and
-  Track 6's business-service suite). The plan called for "at minimum, one test per
-  feature area" — Discovery, Social, and Admin still don't have their own general test
-  suites (Identity now has partial coverage via the Track 6 business-tooling tests,
-  since `Business`/`BusinessMembership` sit in that entity group per data-model.md).
+- Nine test files exist (the original V1 relationships suite, Track 2's reference and
+  claim-appeal suites, the four Track 3 suites, Track 6's business-service suite, and
+  Track 1's search-service suite). The plan called for "at minimum, one test per feature
+  area" — Social and Admin still don't have their own general test suites (Identity has
+  partial coverage via Track 6's business-tooling tests; Discovery is now covered via
+  Track 1's search-service tests).
 - `playwright.config.ts` has not been created. None of the
   [non-negotiable V1 test cases](./product-overview.md#non-negotiable-v1-test-cases)
   are covered by automated e2e tests yet — they were checked manually (curl + direct DB

@@ -2,12 +2,15 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { StorageDriver } from "./types";
 
-const baseDir = path.resolve(process.cwd(), process.env.LOCAL_STORAGE_DIR || ".data/media");
+const baseDir = path.resolve(
+  /* turbopackIgnore: true */ process.cwd(),
+  process.env.LOCAL_STORAGE_DIR || ".data/media",
+);
 const publicPath = process.env.LOCAL_STORAGE_PUBLIC_PATH || "/media";
 
 function resolveKeyPath(key: string): string {
   const normalized = path.normalize(key).replace(/^(\.\.(\/|\\|$))+/, "");
-  return path.join(baseDir, normalized);
+  return path.join(/* turbopackIgnore: true */ baseDir, normalized);
 }
 
 export const localStorageDriver: StorageDriver = {

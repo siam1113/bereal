@@ -188,6 +188,21 @@ thin-route-over-service-layer pattern. No session-scheduling/marketplace UI for
 mentoring (that's Track 5's scope). No `prisma/seed.ts` demo data for any of the four
 new constructs.
 
+## Policy questions flagged during Year 2+ build-out (not decided here)
+
+Per each roadmap track doc's own "flag, not decide silently" instructions — these are
+raised for a human decision, not resolved by any code in these tracks:
+
+- **Track 4 (opportunity network) — sponsored/paid placement.** Any monetization
+  attached to opportunity visibility (e.g. a paid-boost mechanic that ranks a listing
+  above others) risks the risk register's named "monetization damages trust" entry.
+  Nothing paid-placement-shaped was implemented in Track 4's microtask/apprenticeship/
+  team-formation work — `listOpportunities`/`getOpportunity` in
+  `src/lib/services/opportunity-service.ts` return results ordered the same way V1
+  always did (no boost/priority field exists on `Opportunity`). Flagging before anyone
+  builds a sponsored-placement feature here, per
+  [04-opportunity-network.md](./roadmap/04-opportunity-network.md).
+
 ## Open questions before a public launch
 
 Carried over from the original product spec — none of these are resolved by the V1

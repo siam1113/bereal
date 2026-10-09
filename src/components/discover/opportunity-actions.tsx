@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
 
 interface Application {
@@ -14,25 +16,47 @@ interface Application {
   applicant: { name: string | null };
 }
 
-export function ApplyForm({ opportunityId, disabled }: { opportunityId: string; disabled: boolean }) {
+interface TeamSlotOption {
+  id: string;
+  roleTitle: string;
+  headcountNeeded: number;
+  headcountFilled: number;
+}
+
+export function ApplyForm({
+  opportunityId,
+  disabled,
+  teamSlots,
+}: {
+  opportunityId: string;
+  disabled: boolean;
+  teamSlots?: TeamSlotOption[];
+}) {
   const router = useRouter();
   const [coverMessage, setCoverMessage] = useState("");
+  const [teamSlotId, setTeamSlotId] = useState<string | undefined>(teamSlots?.[0]?.id);
   const [submitting, setSubmitting] = useState(false);
+  const isTeamProject = !!teamSlots;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isTeamProject && !teamSlotId) {
+      toast.error("Choose a role to apply for.");
+      return;
+    }
     setSubmitting(true);
     const res = await fetch(`/api/opportunities/${opportunityId}/applications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ coverMessage: coverMessage || undefined }),
+      body: JSON.stringify({ coverMessage: coverMessage || undefined, teamSlotId }),
     });
     setSubmitting(false);
     if (res.ok) {
       setCoverMessage("");
       router.refresh();
     } else {
-      toast.error("Sign in to apply.");
+      const data = await res.json().catch(() => null);
+      toast.error(data?.error ?? "Sign in to apply.");
     }
   }
 
@@ -40,6 +64,23 @@ export function ApplyForm({ opportunityId, disabled }: { opportunityId: string; 
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      {isTeamProject ? (
+        <div>
+          <Label>Role</Label>
+          <Select value={teamSlotId} onValueChange={setTeamSlotId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a role" />
+            </SelectTrigger>
+            <SelectContent>
+              {teamSlots!.map((slot) => (
+                <SelectItem key={slot.id} value={slot.id}>
+                  {slot.roleTitle} ({slot.headcountFilled}/{slot.headcountNeeded} filled)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
       <Textarea
         placeholder="Optional note to the poster..."
         value={coverMessage}
@@ -62,7 +103,10 @@ export function ApplicationRow({ application, isPoster }: { application: Applica
       body: JSON.stringify({ status }),
     });
     if (res.ok) router.refresh();
-    else toast.error("Could not update status.");
+    else {
+      const data = await res.json().catch(() => null);
+      toast.error(data?.error ?? "Could not update status.");
+    }
   }
 
   return (
@@ -109,6 +153,87 @@ export function OpportunityStatusControl({ opportunityId, currentStatus }: { opp
           {s}
         </Button>
       ))}
+    </div>
+  );
+}
+
+interface TeamSlotWithApplications {
+  id: string;
+  roleTitle: string;
+  headcountNeeded: number;
+  headcountFilled: number;
+  skill: { name: string } | null;
+  applications: Application[];
+}
+
+/** TEAM_PROJECT only: one role per card, with its own applicant roster. */
+export function TeamRoster({
+  opportunityId,
+  teamSlots,
+  isPoster,
+}: {
+  opportunityId: string;
+  teamSlots: TeamSlotWithApplications[];
+  isPoster: boolean;
+}) {
+  const router = useRouter();
+  const [newRole, setNewRole] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  async function addRole(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newRole.trim()) return;
+    setAdding(true);
+    const res = await fetch(`/api/opportunities/${opportunityId}/team-slots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roleTitle: newRole }),
+    });
+    setAdding(false);
+    if (res.ok) {
+      setNewRole("");
+      router.refresh();
+    } else {
+      toast.error("Could not add role.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {teamSlots.map((slot) => (
+        <div key={slot.id} className="rounded-md border border-border p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-ink">
+              {slot.roleTitle}
+              {slot.skill ? ` · ${slot.skill.name}` : ""}
+            </h3>
+            <Badge variant={slot.headcountFilled >= slot.headcountNeeded ? "accent" : "outline"}>
+              {slot.headcountFilled}/{slot.headcountNeeded} filled
+            </Badge>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {slot.applications.map((a) => (
+              <ApplicationRow key={a.id} application={a} isPoster={isPoster} />
+            ))}
+            {slot.applications.length === 0 ? (
+              <p className="text-sm text-ink-muted">No applicants for this role yet.</p>
+            ) : null}
+          </div>
+        </div>
+      ))}
+      {isPoster ? (
+        <form onSubmit={addRole} className="flex gap-2">
+          <input
+            className="flex-1 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-ink"
+            placeholder="Add another role (e.g. Project manager)"
+            value={newRole}
+            onChange={(e) => setNewRole(e.target.value)}
+          />
+          <Button type="submit" variant="secondary" disabled={adding}>
+            {adding ? "Adding..." : "Add role"}
+          </Button>
+        </form>
+      ) : null}
     </div>
   );
 }

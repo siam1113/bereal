@@ -2,7 +2,7 @@
 
 A versioned, stable REST surface over the same service layer the web app calls — see
 [architecture.md](./architecture.md#layering). Built so a future native mobile client,
-partner integration, or internal tool can reuse COMMON's business logic without going
+partner integration, or internal tool can reuse Proverse's business logic without going
 through server-rendered pages, per the original build instruction: "keep business logic
 behind typed service interfaces so native apps, integrations and future search engines
 can reuse it."
@@ -45,7 +45,7 @@ that's pending human sign-off; it is not a closed decision.
   `API_SCOPES` in `src/lib/services/api-key-service.ts`). A key can never do more than
   the union of its scopes allows, and scopes only narrow — never widen — what the
   underlying service calls already enforce for that user.
-- The plaintext token (`common_sk_<random>`) is shown exactly once at creation; only a
+- The plaintext token (`proverse_sk_<random>`) is shown exactly once at creation; only a
   SHA-256 hash (`keyHash`) and a short `keyPrefix` (for the user to tell keys apart in
   the UI) are persisted.
 - Default expiry 90 days, capped at 365 (`DEFAULT_TTL_DAYS`/`MAX_TTL_DAYS`); keys can be

@@ -403,7 +403,7 @@ build, and shouldn't be assumed settled just because the app works:
 - Whether the first real launch community should be local trades, creators, or a mixed
   set of professions — this affects seed-data strategy and initial moderation load far
   more than it affects the code.
-- Brand clearance: "COMMON" is a provisional working name; trademark and domain
+- Brand clearance: "Proverse" is the working name; trademark and domain
   availability were never checked.
 - **Track 2 (identity & evidence):** minimum reference count and anti-collusion
   criteria before a `Reference` contributes to a badge or stage signal — same open

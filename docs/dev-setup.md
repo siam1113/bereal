@@ -28,17 +28,17 @@ All seeded accounts (`prisma/seed.ts`) share the password `Passw0rd!2026`:
 
 | Email | Role |
 | --- | --- |
-| `admin@demo.common.app` | Platform admin — `/admin` |
-| `rashid.carpenter@demo.common.app` | Carpenter, established, owns a business |
-| `amina.tailor@demo.common.app` | Tailor, practicing |
-| `hasan.electrician@demo.common.app` | Electrician, emerging |
-| `farida.farmer@demo.common.app` | Organic farmer, established |
-| `kamal.agronomist@demo.common.app` | Agronomy consultant, practicing |
-| `nusrat.wellness@demo.common.app` | Wellness coach, emerging |
-| `tariq.painter@demo.common.app` | Painter, learning |
-| `sadia.engineer@demo.common.app` | Backend engineer, established |
-| `imran.frontend@demo.common.app` | Frontend engineer, practicing |
-| `mitu.consultant@demo.common.app` | Small business consultant, practicing |
+| `admin@demo.proverse.app` | Platform admin — `/admin` |
+| `rashid.carpenter@demo.proverse.app` | Carpenter, established, owns a business |
+| `amina.tailor@demo.proverse.app` | Tailor, practicing |
+| `hasan.electrician@demo.proverse.app` | Electrician, emerging |
+| `farida.farmer@demo.proverse.app` | Organic farmer, established |
+| `kamal.agronomist@demo.proverse.app` | Agronomy consultant, practicing |
+| `nusrat.wellness@demo.proverse.app` | Wellness coach, emerging |
+| `tariq.painter@demo.proverse.app` | Painter, learning |
+| `sadia.engineer@demo.proverse.app` | Backend engineer, established |
+| `imran.frontend@demo.proverse.app` | Frontend engineer, practicing |
+| `mitu.consultant@demo.proverse.app` | Small business consultant, practicing |
 
 The seed also creates a representative spread of relationship states: a
 `MUTUALLY_CONFIRMED` `WORKED_WITH` (Rashid ↔ Hasan, with confirmed feedback), a

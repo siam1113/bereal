@@ -59,7 +59,7 @@ export default function SignupPage() {
     <div className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16">
       <Card>
         <CardHeader>
-          <CardTitle>Join COMMON</CardTitle>
+          <CardTitle>Join Proverse</CardTitle>
           <CardDescription>Every skill deserves to be seen.</CardDescription>
         </CardHeader>
         <CardContent>

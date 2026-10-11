@@ -25,8 +25,8 @@ A multi-stage `Dockerfile` builds the Next.js `standalone` output
 (`next.config.ts` sets `output: "standalone"`):
 
 ```bash
-docker build -t common-app .
-docker run -p 3000:3000 --env-file .env common-app
+docker build -t proverse-app .
+docker run -p 3000:3000 --env-file .env proverse-app
 ```
 
 It does **not** run migrations itself — run `pnpm db:deploy` against the target

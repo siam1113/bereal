@@ -64,7 +64,7 @@ export async function deleteAccount(userId: string): Promise<{ ok: true }> {
     data: {
       status: "DELETED",
       deletedAt: new Date(),
-      email: `deleted-${userId}@deleted.common.invalid`,
+      email: `deleted-${userId}@deleted.proverse.invalid`,
       passwordHash: null,
       name: "Deleted user",
       image: null,

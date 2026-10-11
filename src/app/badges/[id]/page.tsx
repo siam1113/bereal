@@ -24,7 +24,7 @@ export default async function BadgeDetailPage({ params }: { params: Promise<{ id
           </p>
           <p>
             <span className="text-ink-muted">Issued by: </span>
-            {award.issuer?.name ?? "COMMON (system)"}
+            {award.issuer?.name ?? "Proverse (system)"}
           </p>
           <p>
             <span className="text-ink-muted">Date: </span>

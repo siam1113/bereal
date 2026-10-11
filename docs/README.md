@@ -1,6 +1,6 @@
-# COMMON docs
+# Proverse docs
 
-Documentation for the COMMON V1 build. Start with whichever fits what you're doing:
+Documentation for the Proverse V1 build. Start with whichever fits what you're doing:
 
 | Doc | Read this when... |
 | --- | --- |

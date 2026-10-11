@@ -1,6 +1,6 @@
 # Product overview
 
-**COMMON** — *Every skill deserves to be seen.* (Working name; trademark/domain not cleared.)
+**Proverse** — *Every skill deserves to be seen.* (Working name; trademark/domain not cleared.)
 
 A people-first professional discovery and relationship network for *every kind of
 skill* — carpentry and tailoring as much as engineering and executive leadership. People

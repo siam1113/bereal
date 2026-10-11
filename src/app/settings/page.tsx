@@ -16,6 +16,11 @@ const SECTIONS = [
     label: "References",
     description: "Structured references you've given and received, from confirmed relationships.",
   },
+  {
+    href: "/settings/appearance",
+    label: "Appearance",
+    description: "Choose where the main navigation appears.",
+  },
   { href: "/settings/privacy", label: "Privacy", description: "Account deletion and data visibility." },
   {
     href: "/settings/api-keys",

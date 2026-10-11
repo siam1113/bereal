@@ -60,7 +60,7 @@ interface PersonSeed {
 
 const PEOPLE: PersonSeed[] = [
   {
-    email: "rashid.carpenter@demo.common.app",
+    email: "rashid.carpenter@demo.proverse.app",
     name: "Rashid Islam",
     slug: "rashid-islam",
     bio: "Furniture maker and carpenter, 14 years building custom cabinetry and restoring antique furniture.",
@@ -75,7 +75,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_WORK",
   },
   {
-    email: "amina.tailor@demo.common.app",
+    email: "amina.tailor@demo.proverse.app",
     name: "Amina Chowdhury",
     slug: "amina-chowdhury",
     bio: "Tailor specializing in bridal wear, moving into pattern design for a small label.",
@@ -90,7 +90,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_COLLAB",
   },
   {
-    email: "hasan.electrician@demo.common.app",
+    email: "hasan.electrician@demo.proverse.app",
     name: "Hasan Mahmud",
     slug: "hasan-mahmud",
     bio: "Residential electrician, three years in, training toward a master license.",
@@ -105,7 +105,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_WORK",
   },
   {
-    email: "farida.farmer@demo.common.app",
+    email: "farida.farmer@demo.proverse.app",
     name: "Farida Begum",
     slug: "farida-begum",
     bio: "Runs a 12-acre organic rice and vegetable farm, consults on crop rotation for smallholders.",
@@ -120,7 +120,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_COLLAB",
   },
   {
-    email: "kamal.agronomist@demo.common.app",
+    email: "kamal.agronomist@demo.proverse.app",
     name: "Kamal Hossain",
     slug: "kamal-hossain",
     bio: "Agronomy consultant working with cooperatives on soil health and yield improvement.",
@@ -135,7 +135,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "LIMITED",
   },
   {
-    email: "nusrat.wellness@demo.common.app",
+    email: "nusrat.wellness@demo.proverse.app",
     name: "Nusrat Jahan",
     slug: "nusrat-jahan",
     bio: "Wellness coach supporting families with elder care routines and non-clinical home support.",
@@ -150,7 +150,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_WORK",
   },
   {
-    email: "tariq.painter@demo.common.app",
+    email: "tariq.painter@demo.proverse.app",
     name: "Tariq Rahman",
     slug: "tariq-rahman",
     bio: "Self-taught oil painter, two years in, exhibiting at local community shows.",
@@ -165,7 +165,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_COLLAB",
   },
   {
-    email: "sadia.engineer@demo.common.app",
+    email: "sadia.engineer@demo.proverse.app",
     name: "Sadia Islam",
     slug: "sadia-islam",
     bio: "Backend engineer, 9 years, now also designing systems training for new developers.",
@@ -180,7 +180,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_COLLAB",
   },
   {
-    email: "imran.frontend@demo.common.app",
+    email: "imran.frontend@demo.proverse.app",
     name: "Imran Kabir",
     slug: "imran-kabir",
     bio: "Frontend engineer and part-time graphic designer for small business clients.",
@@ -195,7 +195,7 @@ const PEOPLE: PersonSeed[] = [
     availability: "OPEN_TO_WORK",
   },
   {
-    email: "mitu.consultant@demo.common.app",
+    email: "mitu.consultant@demo.proverse.app",
     name: "Mitu Akter",
     slug: "mitu-akter",
     bio: "Small business consultant helping craftspeople and farmers formalize and grow.",
@@ -299,19 +299,19 @@ async function seedPeople(skillIds: Map<string, string>) {
 async function seedAdmin() {
   const passwordHash = await hash(DEMO_PASSWORD);
   await prisma.user.upsert({
-    where: { email: "admin@demo.common.app" },
+    where: { email: "admin@demo.proverse.app" },
     update: {},
     create: {
-      email: "admin@demo.common.app",
-      name: "COMMON Admin",
+      email: "admin@demo.proverse.app",
+      name: "Proverse Admin",
       passwordHash,
       emailVerified: new Date(),
       status: "ACTIVE",
       role: "ADMIN",
       personProfile: {
         create: {
-          slug: "common-admin",
-          displayName: "COMMON Admin",
+          slug: "proverse-admin",
+          displayName: "Proverse Admin",
           bio: "Platform administration account.",
           languages: ["en"],
         },

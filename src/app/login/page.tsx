@@ -41,7 +41,7 @@ function LoginForm() {
     <div className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16">
       <Card>
         <CardHeader>
-          <CardTitle>Sign in to COMMON</CardTitle>
+          <CardTitle>Sign in to Proverse</CardTitle>
           <CardDescription>Every skill deserves to be seen.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -86,7 +86,7 @@ function LoginForm() {
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-ink-muted">
-            New to COMMON?{" "}
+            New to Proverse?{" "}
             <Link href="/signup" className="text-accent hover:underline">
               Create an account
             </Link>

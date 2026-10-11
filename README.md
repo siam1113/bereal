@@ -1,4 +1,4 @@
-# COMMON
+# Proverse
 
 > Every skill deserves to be seen.
 
@@ -27,7 +27,7 @@ pnpm dev                       # http://localhost:3000
 ```
 
 All seeded demo accounts share the password `Passw0rd!2026`, e.g.
-`rashid.carpenter@demo.common.app` or `admin@demo.common.app` (platform admin, `/admin`).
+`rashid.carpenter@demo.proverse.app` or `admin@demo.proverse.app` (platform admin, `/admin`).
 Full list and details: [`docs/dev-setup.md`](./docs/dev-setup.md).
 
 ## Scripts

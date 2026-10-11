@@ -13,22 +13,23 @@ const categories = [
 
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16">
-      <section className="flex flex-col items-start gap-6">
-        <p className="rounded-full bg-accent-soft px-3 py-1 text-xs font-medium uppercase tracking-wide text-accent">
+    <div className="mx-auto px-4 py-10 sm:px-8 sm:py-14">
+      <section className="flex flex-col items-start gap-5">
+        <p className="animate-fade-in-up rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
           Every skill deserves to be seen
         </p>
-        <h1 className="font-display text-4xl font-medium leading-tight text-ink sm:text-5xl">
-          A professional network built for every kind of skill.
+        <h1 className="animate-fade-in-up text-4xl font-extrabold leading-[1.05] tracking-tight text-ink [animation-delay:80ms] sm:text-5xl">
+          A professional network built for{" "}
+          <span className="text-gradient-brand">every kind of skill</span>.
         </h1>
-        <p className="max-w-2xl text-lg text-ink-muted">
+        <p className="animate-fade-in-up max-w-xl text-lg text-ink-muted [animation-delay:140ms]">
           Carpenters and software engineers, tailors and consultants, farmers and
           designers — show real work, build a relationship graph that reflects how you
           actually worked together, and get discovered by the people who need you.
         </p>
-        <div className="flex gap-3">
+        <div className="animate-fade-in-up flex gap-3 [animation-delay:200ms]">
           <Button size="lg" asChild>
-            <Link href="/signup">Join COMMON</Link>
+            <Link href="/signup">Join Proverse</Link>
           </Button>
           <Button size="lg" variant="secondary" asChild>
             <Link href="/discover">Explore the directory</Link>
@@ -36,10 +37,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-16 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {categories.map((category) => (
-          <Card key={category}>
-            <CardContent className="p-4 text-sm font-medium text-ink">{category}</CardContent>
+      <section className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {categories.map((category, i) => (
+          <Card
+            key={category}
+            className="animate-fade-in-up"
+            style={{ animationDelay: `${240 + i * 40}ms` }}
+          >
+            <CardContent className="p-4 text-sm font-semibold text-ink">{category}</CardContent>
           </Card>
         ))}
       </section>

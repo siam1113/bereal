@@ -1,7 +1,7 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { StorageDriver } from "./types";
 
-const bucket = process.env.S3_BUCKET || "common-media";
+const bucket = process.env.S3_BUCKET || "proverse-media";
 
 const client = new S3Client({
   region: process.env.S3_REGION || "us-east-1",

@@ -9,7 +9,7 @@ export default async function ServicesPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <h1 className="font-display text-3xl font-medium text-ink">Services</h1>
-      <p className="mt-2 text-ink-muted">Browse services offered by people and businesses on COMMON.</p>
+      <p className="mt-2 text-ink-muted">Browse services offered by people and businesses on Proverse.</p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {offerings.map((o) => (

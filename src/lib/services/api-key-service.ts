@@ -28,7 +28,7 @@ export const API_SCOPES = [
 
 export type ApiScope = (typeof API_SCOPES)[number];
 
-const TOKEN_PREFIX = "common_sk_";
+const TOKEN_PREFIX = "proverse_sk_";
 const DEFAULT_TTL_DAYS = 90;
 const MAX_TTL_DAYS = 365;
 

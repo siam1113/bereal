@@ -16,7 +16,7 @@ export default async function PrivacySettingsPage() {
         <CardContent className="p-5">
           <h2 className="font-display text-lg font-medium text-ink">Location</h2>
           <p className="mt-1 text-sm text-ink-muted">
-            Your profile only ever shows city/region/country labels. COMMON never displays or
+            Your profile only ever shows city/region/country labels. Proverse never displays or
             shares your exact address or precise coordinates, even for &quot;local&quot;
             search.
           </p>

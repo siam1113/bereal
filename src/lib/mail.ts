@@ -8,7 +8,7 @@ interface SendEmailInput {
 }
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const from = process.env.EMAIL_FROM || "COMMON <no-reply@common.app>";
+const from = process.env.EMAIL_FROM || "Proverse <no-reply@proverse.app>";
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 /**
@@ -27,15 +27,15 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
 
 export function verificationEmail(url: string) {
   return {
-    subject: "Verify your COMMON account",
-    text: `Welcome to COMMON. Verify your email: ${url}`,
-    html: `<p>Welcome to COMMON.</p><p><a href="${url}">Verify your email</a></p>`,
+    subject: "Verify your Proverse account",
+    text: `Welcome to Proverse. Verify your email: ${url}`,
+    html: `<p>Welcome to Proverse.</p><p><a href="${url}">Verify your email</a></p>`,
   };
 }
 
 export function passwordResetEmail(url: string) {
   return {
-    subject: "Reset your COMMON password",
+    subject: "Reset your Proverse password",
     text: `Reset your password: ${url}`,
     html: `<p><a href="${url}">Reset your password</a></p><p>If you didn't request this, ignore this email.</p>`,
   };
